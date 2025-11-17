@@ -18,10 +18,10 @@ def get_cit_data(d=20, a=3, n=5000, test='type1', seed=0, u=None, v=None):
     np.random.seed(seed)
     Z_mu = np.zeros((d-1, 1)).ravel()
     Z_Sigma = np.eye(d-1)
-    Z = np.random.multivariate_normal(Z_mu, Z_Sigma, n)
+    Z = np.random.multivariate_normal(Z_mu, Z_Sigma, n) # Z is n x (d-1)
     if v is None: v = np.random.normal(0, 1, (d-1, 1))
     X_mu = Z @ v
-    X = np.random.normal(X_mu, 1, (n, 1))
+    X = np.random.normal(X_mu, 1, (n, 1)) # X is n x 1
     if u is None: u = np.random.normal(0, 1, (d-1, 1))
     beta = np.ones((d, 1))
     if test == 'type2':
@@ -29,8 +29,8 @@ def get_cit_data(d=20, a=3, n=5000, test='type1', seed=0, u=None, v=None):
     elif test == 'type1':
         Y_mu = (Z @ u) ** 2
         beta[0] = 0
-    Y = np.random.normal(Y_mu, 1, (n, 1))
-    X = np.column_stack((X, Z))
+    Y = np.random.normal(Y_mu, 1, (n, 1)) # Y is n x 1
+    X = np.column_stack((X, Z)) # X is n x d
     return X, Y, X_mu
 
 def sample_X_given_Z(Z, X_mu):
@@ -67,7 +67,7 @@ class GaussianCIT(DatasetOperator):
         X, Y, mu = get_cit_data(u=u, v=v, n=samples, test=type, seed=seed)
 
         # Create a sample from X given Z
-        X_tilde = sample_X_given_Z(X[:, 1:].copy(), mu)
+        X_tilde = sample_X_given_Z(X[:, 1:].copy(), mu) # X_tilde is n x d, (X_tilde[:,0] is sampled from X|Z)
 
         # Convert numpy arrays to PyTorch tensors
         X = torch.from_numpy(X).to(torch.float32)
@@ -75,11 +75,11 @@ class GaussianCIT(DatasetOperator):
         X_tilde = torch.from_numpy(X_tilde).to(torch.float32)
 
         # Concatenate tensors
-        Z = torch.cat((X, Y), dim=1)
-        Z_tilde = torch.cat((X_tilde, Y), dim=1)
+        Z = torch.cat((X, Y), dim=1) # Z is n x (d+1)
+        Z_tilde = torch.cat((X_tilde, Y), dim=1) # Z_tilde is n x (d+1)
 
         # Stack the two tensors along a new dimension
-        self.z = torch.stack([Z, Z_tilde], dim=2)
+        self.z = torch.stack([Z, Z_tilde], dim=2) # z is n x (d+1) x 2
 
 
 class GaussianCITGen(DataGenerator):
