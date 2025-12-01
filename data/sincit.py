@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from .datagen import DatasetOperator, DataGenerator
 
 
-def get_cit_data(d=20, n=100, test='type1', seed=0, beta=1.0, alpha=0.1,
+def get_sin_cit_data(d=20, n=100, test='type1', seed=0, beta=1.0, alpha=0.1,
                  ca_dim_idx=0, cb_dim_idx=0, cr_dim_idx=0):
     """Generate data for the SinCIT test.
     Code adapted from https://github.com/shaersh/ecrt/
@@ -86,7 +86,7 @@ class SinCIT(DatasetOperator):
         super().__init__(tau1, tau2)
 
         # Retrieve data for Sinusoidal CIT
-        a, b, c, a_m = get_cit_data(n=samples, d=d, test=type, seed=seed, beta=beta, alpha=alpha)
+        a, b, c, a_m = get_sin_cit_data(n=samples, d=d, test=type, seed=seed, beta=beta, alpha=alpha)
         
         # Create a sample from a given c (similar to X_tilde in GaussianCIT)
         a_tilde = sample_a_given_c(c, a_m, alpha, seed=seed + 999999)

@@ -1,0 +1,57 @@
+# @package _global_
+defaults:
+  - /data: sincit
+  - /model: mlp
+  - /operator@tau1:
+      - projection
+  - /operator@tau2:
+      - swap
+      - projection
+
+
+project: "Test"
+
+
+tau1:
+  projection:
+    input_dim: 0
+
+tau2:
+  swap:
+    p: 5 # data.d + 2
+    d: 0
+  projection:
+    input_dim: 0
+
+
+model:
+  input_size: 5 # data.d + 2
+  hidden_layer_size: [128]
+  layer_norm: true
+  drop_out: true
+  drop_out_p: 0.3
+  output_size: 1
+  bias: true
+
+data:
+  d: 3
+  data_seed: 0
+  samples: 20
+  type: "type2"
+
+
+train:
+  seed: 0
+  lr: 0.0005
+  earlystopping:
+    patience: 10
+    delta: 0.0
+  epochs: 500
+  seqs: 50 # number of mini-batches
+  T: 0 #Warm start number of mini-batches used for the training only
+  alpha: 0.05 # significance level
+  batch_size: 20
+  l1_lambda: 0.0
+  l2_lambda: 0.0
+  save: false
+  save_dir: ""
