@@ -63,7 +63,7 @@ class Trainer:
         - logs (dict): Dictionary containing metrics to be logged.
         """
         for key, value in logs.items():
-            wandb.log({key: value})
+            wandb.log({key: value}, step=self.current_seq * self.epochs + self.current_epoch)
             logging.info(f"Seq: {self.current_seq}, Epoch: {self.current_epoch}, {key}: {value}")
 
     def l1_regularization(self):
@@ -134,7 +134,8 @@ class Trainer:
         train_data, train_loader = self.load_data(self.seed, mode="train")
         val_data, val_loader = self.load_data(self.seed + 1, mode="val")
         davts = []
-
+        reject_null = 0.0
+        
         for k in range(self.seqs):
             self.current_seq = k
             for t in range(self.epochs):
@@ -164,3 +165,7 @@ class Trainer:
             if davt > (1. / self.alpha):
                 logging.info("Reject null at %f", davt)
                 self.log({"steps": k})
+                reject_null = 1.0
+                self.log({"reject_null": reject_null})
+            else:
+                self.log({"reject_null": reject_null})

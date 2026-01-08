@@ -12,6 +12,13 @@ defaults:
 project: "Test"
 
 
+wandb:
+  disabled: false
+  group: "${wandb.task}_d19_davt_mlp_128_${model.output_size}_bs${data.samples}_T${train.T}"
+  task: "gaussian"
+  tags: ["exp", "davt"]
+
+
 tau1:
   projection:
     input_dim: 0
@@ -34,7 +41,7 @@ model:
   bias: true
 
 data:
-  data_seed: 0
+  data_seed: ${train.seed}
   samples: 100
   type: "type2"
 
