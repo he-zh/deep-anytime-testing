@@ -150,6 +150,8 @@ class Trainer:
                     davt = np.prod(np.array(davts[self.T:])) if k >= self.T else 1
                     self.log({"aggregated_test_e-value": davt})
                     train_data = ConcatDataset([train_data, val_data])
+                    self.log({"historical_sample_nums": len(train_data)})
+                    self.log({"all_sample_nums": len(train_data) + len(test_data)})
                     val_data = test_data
                     train_loader = DataLoader(train_data, batch_size=self.bs, shuffle=True)
                     val_loader = DataLoader(val_data, batch_size=self.bs, shuffle=True)
