@@ -16,7 +16,7 @@ wandb:
   disabled: false
   group: "${wandb.task}_d19_davt_mlp_128_${model.output_size}_bs${data.samples}_T${train.T}"
   task: "gaussian"
-  tags: ["exp", "davt"]
+  tags: ["test", "davt"]
 
 
 tau1:
