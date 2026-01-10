@@ -145,7 +145,7 @@ class CITDataGeneratorBase(DataGenerator):
                 Z_tr, mu_tr, X_tr,
                 Z_val=Z_val, X_val=X_val,
                 epochs=self.estimator_epochs,
-                patience=500,
+                patience=self.estimator_patience,
                 lr=self.estimator_lr
             )
         elif self.mode == MODE_ONLINE:

@@ -86,7 +86,7 @@ class GaussianCIT(DatasetOperator):
             X_tilde = sample_X_tilde_given_Z_estimator(Z_cov, X_target, X_given_Z_estimator).to('cpu')
         
         
-        X_tilde = torch.cat((X_tilde, Z_cov), dim=1)
+        X_tilde = torch.cat((X_tilde, X[:, 1:]), dim=1)
 
         # Concatenate tensors
         Z = torch.cat((X, Y), dim=1) # Z is n x (d+1)

@@ -16,5 +16,5 @@ estimator_cfg:
   drop_out_p: 0.3
   lr: 0.001
   patience: 10
-  epochs: 500
-  val_ratio: 0.3  # Train/val split ratio for pseudo_model_x
+  epochs: 1000
+  val_ratio: 0.2  # Train/val split ratio for pseudo_model_x
