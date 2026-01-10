@@ -77,6 +77,7 @@ class SinCIT(DatasetOperator):
     """
 
     def __init__(self, type, samples, z_dim, seed, tau1, tau2, beta=1.0, alpha=0.1, 
+                 ca_dim_idx=0, cb_dim_idx=0, cr_dim_idx=0,
                  mode=MODE_MODEL_X, X_given_Z_estimator=None):
         """
         Initialize the SinCIT object.
@@ -96,7 +97,8 @@ class SinCIT(DatasetOperator):
         super().__init__(tau1, tau2)
 
         # Retrieve data for Sinusoidal CIT
-        a, b, c, a_m = get_sin_cit_data(n=samples, z_dim=z_dim, test=type, seed=seed, beta=beta, alpha=alpha)
+        a, b, c, a_m = get_sin_cit_data(n=samples, z_dim=z_dim, test=type, seed=seed, beta=beta, alpha=alpha,
+                                         ca_dim_idx=ca_dim_idx, cb_dim_idx=cb_dim_idx, cr_dim_idx=cr_dim_idx)
 
         # Create a sample from a given c based on mode
         if mode == MODE_MODEL_X:
@@ -137,7 +139,8 @@ class SinCITGen(CITDataGeneratorBase):
     - online: Estimate μ using accumulated training data, updated each sequence
     """
 
-    def __init__(self, type, samples, z_dim, data_seed, beta=1.0, alpha=0.1, 
+    def __init__(self, type, samples, z_dim, data_seed, beta=1.0, alpha=0.1,
+                 ca_dim_idx=0, cb_dim_idx=0, cr_dim_idx=0,
                  mode=MODE_MODEL_X, pretrain_samples=5000, estimator_cfg=None):
         """
         Initialize the SinCITGen object.
@@ -149,6 +152,9 @@ class SinCITGen(CITDataGeneratorBase):
         - data_seed (int): Seed for random number generation.
         - beta (float): Parameter for type2 test.
         - alpha (float): Noise scale parameter.
+        - ca_dim_idx (int): Dimension index for variable a.
+        - cb_dim_idx (int): Dimension index for variable b.
+        - cr_dim_idx (int): Dimension index for correlation in type2.
         - mode (str): Mode for X|Z estimation. One of 'model_x', 'pseudo_model_x', 'online'.
         - pretrain_samples (int): Number of samples for pre-training estimator (only used in pseudo_model_x mode).
         - estimator_cfg (dict, optional): Config for estimator model.
@@ -158,6 +164,9 @@ class SinCITGen(CITDataGeneratorBase):
         self.d = z_dim + 1 + 1  # Total dimension: a(1) + c(z_dim) + b(1)
         self.beta = beta
         self.alpha = alpha
+        self.ca_dim_idx = ca_dim_idx
+        self.cb_dim_idx = cb_dim_idx
+        self.cr_dim_idx = cr_dim_idx
         
         # Initialize estimator based on mode
         self._initialize_mode(mode, pretrain_samples, type)
@@ -172,7 +181,8 @@ class SinCITGen(CITDataGeneratorBase):
         if mode == MODE_PSEUDO_MODEL_X:
             a_train, _, c_train, a_m_train = get_sin_cit_data(
                 n=pretrain_samples, z_dim=self._z_dim, test=type, seed=99999, 
-                beta=self.beta, alpha=self.alpha)
+                beta=self.beta, alpha=self.alpha,
+                ca_dim_idx=self.ca_dim_idx, cb_dim_idx=self.cb_dim_idx, cr_dim_idx=self.cr_dim_idx)
             a_train = torch.from_numpy(a_train).to(torch.float32)
             c_train = torch.from_numpy(c_train).to(torch.float32)
             a_m_train = torch.from_numpy(a_m_train).to(torch.float32)
@@ -195,5 +205,6 @@ class SinCITGen(CITDataGeneratorBase):
         # Use a modified seed value based on the provided seed and class's data_seed
         modified_seed = (self.data_seed + 1) * 100 + seed
         return SinCIT(self.type, self.samples, self._z_dim, modified_seed, tau1, tau2, 
-                      beta=self.beta, alpha=self.alpha, mode=self.mode, 
-                      X_given_Z_estimator=self.X_given_Z_estimator)
+                      beta=self.beta, alpha=self.alpha,
+                      ca_dim_idx=self.ca_dim_idx, cb_dim_idx=self.cb_dim_idx, cr_dim_idx=self.cr_dim_idx,
+                      mode=self.mode, X_given_Z_estimator=self.X_given_Z_estimator)
