@@ -46,7 +46,7 @@ data:
   samples: 100
   type: "type2"
   mode: "model_x"  # Options: "model_x", "pseudo_model_x", "online"
-  pretrain_samples: 5000  # Only used in pseudo_model_x mode
+  pretrain_samples: 10000  # Only used in pseudo_model_x mode
 
 
 train:

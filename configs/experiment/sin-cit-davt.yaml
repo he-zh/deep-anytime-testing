@@ -14,7 +14,7 @@ project: "Test"
 wandb:
   disabled: false
   group: "${data.mode}_${wandb.task}_d${data.z_dim}_davt_mlp_128_${model.output_size}_bs${data.samples}_T${train.T}"
-  task: "gaussian"
+  task: "sin"
   tags: ["test", "davt", "${data.mode}"]
 
 
@@ -48,7 +48,9 @@ data:
   alpha: 0.1
   mode: "model_x"  # Options: "model_x", "pseudo_model_x", "online"
   pretrain_samples: 5000  # Only used in pseudo_model_x mode
-
+  ca_dim_idx: 0
+  cb_dim_idx: 0
+  cr_dim_idx: 0
 
 train:
   seed: 0
