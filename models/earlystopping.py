@@ -54,3 +54,4 @@ class EarlyStopper:
         """
 
         self.counter = 0
+        self.min_validation_loss = np.inf

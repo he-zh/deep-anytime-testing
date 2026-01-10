@@ -5,6 +5,12 @@ from torch.utils.data import DataLoader, ConcatDataset
 import wandb
 from models import EarlyStopper
 
+# Import mode constant for checking online mode
+try:
+    from data.datagen import MODE_ONLINE
+except ImportError:
+    MODE_ONLINE = "online"
+
 class Trainer:
 
     def __init__(self, cfg, net, tau1, tau2, datagen, device, data_seed):
@@ -136,6 +142,9 @@ class Trainer:
         davts = []
         reject_null = 0.0
         
+        # For online mode: update estimator with initial training data, use val for early stopping
+        self._update_online_estimator_if_needed(train_data, val_data)
+        
         for k in range(self.seqs):
             self.current_seq = k
             for t in range(self.epochs):
@@ -145,6 +154,7 @@ class Trainer:
 
                 # Check for early stopping or end of epochs
                 if self.early_stopper.early_stop(loss_val.detach()) or (t + 1) == self.epochs:
+
                     test_data, test_loader = self.load_data(self.seed + k + 2, mode="test")
                     _, conditional_davt = self.train_evaluate_epoch(test_loader, mode='test')
                     davts.append(conditional_davt.item())
@@ -153,6 +163,10 @@ class Trainer:
                     train_data = ConcatDataset([train_data, val_data])
                     self.log({"historical_sample_nums": len(train_data)})
                     self.log({"all_sample_nums": len(train_data) + len(test_data)})
+
+                    # Update online estimator with all accumulated data
+                    self._update_online_estimator_if_needed(val_data, test_data)
+
                     val_data = test_data
                     train_loader = DataLoader(train_data, batch_size=self.bs, shuffle=True)
                     val_loader = DataLoader(val_data, batch_size=self.bs, shuffle=True)
@@ -169,3 +183,59 @@ class Trainer:
                 self.log({"reject_null": reject_null})
             else:
                 self.log({"reject_null": reject_null})
+
+    def _update_online_estimator_if_needed(self, train_data, val_data=None):
+        """
+        Update the online estimator if the datagen supports online mode.
+        
+        Args:
+        - train_data: Dataset containing training data to accumulate for estimator
+        - val_data: Dataset for early stopping during estimator training (optional)
+        """
+        # Check if datagen has online mode and update method
+        if not hasattr(self.datagen, 'mode') or self.datagen.mode != MODE_ONLINE:
+            return
+        if not hasattr(self.datagen, 'update_online_estimator'):
+            return
+            
+        # Extract X and Z from the dataset
+        # The data structure is: z = (X, Y) concatenated, shape (n, d+1, 2)
+        # where X = (X_val, Z_cov), so X_val is at index 0, Z_cov is at indices 1:d
+        try:
+            # Helper to extract tensors from dataset
+            def extract_from_data(data):
+                if isinstance(data, ConcatDataset):
+                    all_z = []
+                    for dataset in data.datasets:
+                        if hasattr(dataset, 'z'):
+                            all_z.append(dataset.z[:, :, 0])
+                    if all_z:
+                        return torch.cat(all_z, dim=0)
+                    return None
+                elif hasattr(data, 'z'):
+                    return data.z[:, :, 0]
+                return None
+            
+            z_tensor = extract_from_data(train_data)
+            if z_tensor is None:
+                return
+                
+            # z_tensor shape: (n, total_dim) where total_dim = X_target(1) + Z_cov(z_dim) + Y(1)
+            # X_target is at index 0, Z_cov is at indices 1:(z_dim+1)
+            z_dim = self.datagen.z_dim
+            X_train = z_tensor[:, :1]  # (n, 1) - target variable
+            Z_train = z_tensor[:, 1:z_dim+1]  # (n, z_dim) - conditioning variables
+            
+            # Extract validation data if provided
+            Z_val, X_val = None, None
+            if val_data is not None:
+                z_val_tensor = extract_from_data(val_data)
+                if z_val_tensor is not None:
+                    X_val = z_val_tensor[:, :1]  # target variable
+                    Z_val = z_val_tensor[:, 1:z_dim+1]  # conditioning variables
+            
+            self.datagen.update_online_estimator(Z_train, X_train, Z_val=Z_val, X_val=X_val)
+            logging.info(f"Updated online estimator with {len(z_tensor)} train samples" + 
+                        (f" and {len(z_val_tensor)} val samples" if Z_val is not None else ""))
+        except Exception as e:
+            logging.warning(f"Failed to update online estimator: {e}")

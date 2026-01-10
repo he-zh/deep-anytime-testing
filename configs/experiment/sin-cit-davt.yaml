@@ -13,9 +13,9 @@ project: "Test"
 
 wandb:
   disabled: false
-  group: "${wandb.task}_d${data.d}_davt_mlp_128_${model.output_size}_bs${data.samples}_T${train.T}"
+  group: "${data.mode}_${wandb.task}_d${data.z_dim}_davt_mlp_128_${model.output_size}_bs${data.samples}_T${train.T}"
   task: "gaussian"
-  tags: ["test", "davt"]
+  tags: ["test", "davt", "${data.mode}"]
 
 
 tau1:
@@ -24,14 +24,14 @@ tau1:
 
 tau2:
   swap:
-    p: 5 # data.d + 2
+    p: 5 # data.z_dim + 2
     d: 0
   projection:
     input_dim: 0
 
 
 model:
-  input_size: 5 # data.d + 2
+  input_size: 5 # data.z_dim + 2
   hidden_layer_size: [128]
   layer_norm: true
   drop_out: true
@@ -40,13 +40,14 @@ model:
   bias: true
 
 data:
-  d: 3
-  data_seed: 0
+  z_dim: 3
+  data_seed: ${train.seed}
   samples: 100
   type: "type2"
   beta: 3
   alpha: 0.1
-  model_x: true
+  mode: "model_x"  # Options: "model_x", "pseudo_model_x", "online"
+  pretrain_samples: 5000  # Only used in pseudo_model_x mode
 
 
 train:
