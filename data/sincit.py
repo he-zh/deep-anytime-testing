@@ -180,7 +180,7 @@ class SinCITGen(CITDataGeneratorBase):
         """Initialize estimator based on mode."""
         if mode == MODE_PSEUDO_MODEL_X:
             a_train, _, c_train, a_m_train = get_sin_cit_data(
-                n=pretrain_samples, z_dim=self._z_dim, test=type, seed=99999, 
+                n=pretrain_samples, z_dim=self._z_dim, test=type, seed=99999+self.data_seed, 
                 beta=self.beta, alpha=self.alpha,
                 ca_dim_idx=self.ca_dim_idx, cb_dim_idx=self.cb_dim_idx, cr_dim_idx=self.cr_dim_idx)
             a_train = torch.from_numpy(a_train).to(torch.float32)

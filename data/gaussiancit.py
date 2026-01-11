@@ -141,7 +141,7 @@ class GaussianCITGen(CITDataGeneratorBase):
         """Initialize estimator based on mode."""
         if mode == MODE_PSEUDO_MODEL_X:
             X_train, _, mu_train = get_cit_data(z_dim=self._z_dim, u=self.u, v=self.v, 
-                                                 n=pretrain_samples, test=type, seed=999999)
+                                                 n=pretrain_samples, test=type, seed=999999+self.data_seed)
             X_train = torch.from_numpy(X_train).to(torch.float32)
             mu_train = torch.from_numpy(mu_train).to(torch.float32)
             X_val, Z_train = X_train[:, :1], X_train[:, 1:]

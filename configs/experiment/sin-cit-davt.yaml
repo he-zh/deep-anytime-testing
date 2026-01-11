@@ -42,12 +42,12 @@ model:
 data:
   z_dim: 3
   data_seed: ${train.seed}
-  samples: 100
+  samples: 20
   type: "type2"
   beta: 3
   alpha: 0.1
   mode: "model_x"  # Options: "model_x", "pseudo_model_x", "online"
-  pretrain_samples: 5000  # Only used in pseudo_model_x mode
+  pretrain_samples: 3000  # Only used in pseudo_model_x mode
   ca_dim_idx: 0
   cb_dim_idx: 0
   cr_dim_idx: 0
@@ -59,7 +59,7 @@ train:
     patience: 10
     delta: 0.0
   epochs: 500
-  seqs: 50 # number of mini-batches
+  seqs: 100 # number of mini-batches
   T: 0 #Warm start number of mini-batches used for the training only
   alpha: 0.05 # significance level
   batch_size: 100

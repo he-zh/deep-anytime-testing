@@ -4,7 +4,7 @@ type: "type2"
 data_seed: 0
 z_dim: 19  # Dimension of conditioning variable Z
 mode: "model_x"  # Options: "model_x", "pseudo_model_x", "online"
-pretrain_samples: 5000  # Number of samples for pre-training (only used in pseudo_model_x mode)
+pretrain_samples: 3000  # Number of samples for pre-training (only used in pseudo_model_x mode)
 
 # Estimator configuration (used in pseudo_model_x and online modes)
 estimator_cfg:
