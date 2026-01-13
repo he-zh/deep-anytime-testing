@@ -49,7 +49,7 @@ class GaussianCIT(DatasetOperator):
     This class is responsible for creating a Gaussian CIT dataset.
     """
 
-    def __init__(self, type, samples, seed, tau1, tau2, u, v, z_dim, mode=MODE_MODEL_X, X_given_Z_estimator=None):
+    def __init__(self, type, samples, seed, tau1, tau2, u, v, z_dim, mode=MODE_MODEL_X, mu_X_given_Z_estimator=None):
         """
         Initialize the GaussianCIT object.
 
@@ -63,7 +63,7 @@ class GaussianCIT(DatasetOperator):
         - v (numpy.ndarray): Another parameter for generating CIT data.
         - z_dim (int): Dimension of conditioning variable Z.
         - mode (str): Mode for X|Z estimation. One of MODE_MODEL_X, MODE_PSEUDO_MODEL_X, MODE_ONLINE.
-        - X_given_Z_estimator (PX_Given_Z_Estimator, optional): Pretrained estimator for X given Z.
+        - mu_X_given_Z_estimator (mu_X_Given_Z_Estimator, optional): Pretrained estimator for X given Z.
         """
         super().__init__(tau1, tau2)
 
@@ -73,6 +73,9 @@ class GaussianCIT(DatasetOperator):
         # Convert numpy arrays to PyTorch tensors
         X = torch.from_numpy(X).to(torch.float32)
         Y = torch.from_numpy(Y).to(torch.float32)
+        
+        # Store ground truth conditional mean for monitoring estimation error
+        self.ground_truth_mu = torch.from_numpy(mu).to(torch.float32)
 
         # Create a sample from X given Z based on mode
         if mode == MODE_MODEL_X:
@@ -83,7 +86,7 @@ class GaussianCIT(DatasetOperator):
             # Use estimator (pseudo_model_x or online mode)
             Z_cov = X[:, 1:]  # Conditioning variables
             X_target = X[:, :1]  # Target variable
-            X_tilde = sample_X_tilde_given_Z_estimator(Z_cov, X_target, X_given_Z_estimator).to('cpu')
+            X_tilde = sample_X_tilde_given_Z_estimator(Z_cov, X_target, mu_X_given_Z_estimator).to('cpu')
         
         
         X_tilde = torch.cat((X_tilde, X[:, 1:]), dim=1)
@@ -164,4 +167,4 @@ class GaussianCITGen(CITDataGeneratorBase):
         # Use a modified seed value based on the provided seed and class's data_seed
         modified_seed = (self.data_seed + 1) * 100 + seed
         return GaussianCIT(self.type, self.samples, modified_seed, tau1, tau2, self.u, self.v,
-                          z_dim=self._z_dim, mode=self.mode, X_given_Z_estimator=self.X_given_Z_estimator)
+                          z_dim=self._z_dim, mode=self.mode, mu_X_given_Z_estimator=self.mu_X_given_Z_estimator)

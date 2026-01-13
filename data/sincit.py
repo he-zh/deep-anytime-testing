@@ -78,7 +78,7 @@ class SinCIT(DatasetOperator):
 
     def __init__(self, type, samples, z_dim, seed, tau1, tau2, beta=1.0, alpha=0.1, 
                  ca_dim_idx=0, cb_dim_idx=0, cr_dim_idx=0,
-                 mode=MODE_MODEL_X, X_given_Z_estimator=None):
+                 mode=MODE_MODEL_X, mu_X_given_Z_estimator=None):
         """
         Initialize the SinCIT object.
 
@@ -92,13 +92,21 @@ class SinCIT(DatasetOperator):
         - beta (float): Parameter for type2 test correlation.
         - alpha (float): Noise scale parameter.
         - mode (str): Mode for X|Z estimation. One of MODE_MODEL_X, MODE_PSEUDO_MODEL_X, MODE_ONLINE.
-        - X_given_Z_estimator: Pretrained estimator for a given c.
+        - mu_X_given_Z_estimator: Pretrained estimator for a given c.
         """
         super().__init__(tau1, tau2)
 
         # Retrieve data for Sinusoidal CIT
         a, b, c, a_m = get_sin_cit_data(n=samples, z_dim=z_dim, test=type, seed=seed, beta=beta, alpha=alpha,
                                          ca_dim_idx=ca_dim_idx, cb_dim_idx=cb_dim_idx, cr_dim_idx=cr_dim_idx)
+
+        # Convert numpy arrays to torch tensors
+        a = torch.from_numpy(a).to(torch.float32)
+        b = torch.from_numpy(b).to(torch.float32)
+        c = torch.from_numpy(c).to(torch.float32)
+        
+        # Store ground truth conditional mean for monitoring estimation error
+        self.ground_truth_mu = torch.from_numpy(a_m).to(torch.float32)
 
         # Create a sample from a given c based on mode
         if mode == MODE_MODEL_X:
@@ -107,12 +115,7 @@ class SinCIT(DatasetOperator):
             a_tilde = torch.from_numpy(a_tilde).to(torch.float32)
         else:
             # Use estimator (pseudo_model_x or online mode)
-            a_tilde = sample_X_tilde_given_Z_estimator(c, a, X_given_Z_estimator).to('cpu')
-
-        # Convert numpy arrays to torch tensors
-        a = torch.from_numpy(a).to(torch.float32)
-        b = torch.from_numpy(b).to(torch.float32)
-        c = torch.from_numpy(c).to(torch.float32)
+            a_tilde = sample_X_tilde_given_Z_estimator(c, a, mu_X_given_Z_estimator).to('cpu')
         
         # Construct X and Y
         # X = [a, c], Y = b
@@ -207,4 +210,4 @@ class SinCITGen(CITDataGeneratorBase):
         return SinCIT(self.type, self.samples, self._z_dim, modified_seed, tau1, tau2, 
                       beta=self.beta, alpha=self.alpha,
                       ca_dim_idx=self.ca_dim_idx, cb_dim_idx=self.cb_dim_idx, cr_dim_idx=self.cr_dim_idx,
-                      mode=self.mode, X_given_Z_estimator=self.X_given_Z_estimator)
+                      mode=self.mode, mu_X_given_Z_estimator=self.mu_X_given_Z_estimator)

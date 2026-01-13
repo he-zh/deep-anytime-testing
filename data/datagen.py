@@ -35,6 +35,77 @@ class DatasetOperator(Dataset):
             tau2_z = self.tau2(tau2_z)
         return tau1_z, tau2_z
 
+    def regenerate_tilde(self, mu_X_given_Z_estimator, z_dim=1):
+        """
+        Regenerate X_tilde using an updated estimator.
+        
+        This method should be called after the online estimator is updated
+        to refresh all X_tilde values with the improved estimator.
+        
+        The data structure in self.z is:
+        - z[:, :, 0] = Z = [X_target, Z_cov, Y]
+        - z[:, :, 1] = Z_tilde = [X_tilde, Z_cov, Y]
+        
+        Where X_target is at index 0, Z_cov is at indices 1:z_dim+1, Y is at z_dim+1:
+        
+        Args:
+        - mu_X_given_Z_estimator: Updated estimator for E[X|Z]
+        - z_dim: Dimension of conditioning variable Z_cov (default 1)
+        """
+        if mu_X_given_Z_estimator is None:
+            return
+            
+        # Extract from original Z (z[:, :, 0])
+        Z_original = self.z[:, :, 0]
+        X_target = Z_original[:, :1]              # (n, 1)
+        Z_cov = Z_original[:, 1:z_dim+1]          # (n, z_dim)
+        Y = Z_original[:, z_dim+1:]               # (n, 1) or more
+        
+        # Regenerate X_tilde with the updated estimator
+        X_tilde_new = sample_X_tilde_given_Z_estimator(
+            Z_cov, X_target, mu_X_given_Z_estimator
+        ).to(Z_original.device)
+        
+        # Reconstruct Z_tilde = [X_tilde, Z_cov, Y]
+        Z_tilde_new = torch.cat((X_tilde_new, Z_cov, Y), dim=1)
+        
+        # Update self.z with new Z_tilde
+        self.z = torch.stack([Z_original, Z_tilde_new], dim=2)
+
+
+class MergedDataset(DatasetOperator):
+    """
+    A dataset that merges multiple DatasetOperator datasets into one.
+    Concatenates the underlying z tensors and ground_truth_mu (if present).
+    """
+    
+    def __init__(self, datasets):
+        """
+        Merge multiple datasets into one.
+        
+        Args:
+        - datasets: List of DatasetOperator instances to merge
+        """
+        if not datasets:
+            raise ValueError("Cannot create MergedDataset from empty list")
+        
+        # Get tau1, tau2 from first dataset
+        first = datasets[0]
+        super().__init__(first.tau1, first.tau2)
+        
+        # Collect all z tensors and ground_truth_mu
+        all_z = []
+        all_mu = []
+        for ds in datasets:
+            if hasattr(ds, 'z'):
+                all_z.append(ds.z)
+            if hasattr(ds, 'ground_truth_mu') and ds.ground_truth_mu is not None:
+                all_mu.append(ds.ground_truth_mu)
+        
+        # Concatenate
+        self.z = torch.cat(all_z, dim=0)
+        self.ground_truth_mu = torch.cat(all_mu, dim=0) if all_mu else None
+
 
 class CITDataGeneratorBase(DataGenerator):
     """
@@ -74,7 +145,7 @@ class CITDataGeneratorBase(DataGenerator):
         self.estimator_val_ratio = self.estimator_cfg.get('val_ratio', 0.2)  # For pseudo_model_x train/val split
         
         # Will be set by subclass or during training
-        self.X_given_Z_estimator = None
+        self.mu_X_given_Z_estimator = None
         self.estimator_optimizer = None
         self.estimator_early_stopper = None
         self.accumulated_Z = None
@@ -100,11 +171,11 @@ class CITDataGeneratorBase(DataGenerator):
         - input_dim: Input dimension (Z dimension)
         
         Returns:
-        - model: PX_Given_Z_Estimator instance
+        - model: mu_X_Given_Z_Estimator instance
         """
-        from .estimate_x_given_z import PX_Given_Z_Estimator
+        from .estimate_x_given_z import mu_X_Given_Z_Estimator
         
-        return PX_Given_Z_Estimator(
+        return mu_X_Given_Z_Estimator(
             input_dim=input_dim,
             hidden_size=self.estimator_hidden_size,
             layer_norm=self.estimator_layer_norm,
@@ -124,10 +195,10 @@ class CITDataGeneratorBase(DataGenerator):
         from .estimate_x_given_z import train_estimator
         
         if self.mode == MODE_MODEL_X:
-            self.X_given_Z_estimator = None
+            self.mu_X_given_Z_estimator = None
         elif self.mode == MODE_PSEUDO_MODEL_X:
             # Create the model
-            self.X_given_Z_estimator = self._create_estimator(input_dim=Z_train.shape[1])
+            self.mu_X_given_Z_estimator = self._create_estimator(input_dim=Z_train.shape[1])
             
             # Split data into train/val for early stopping
             n = len(Z_train)
@@ -140,8 +211,8 @@ class CITDataGeneratorBase(DataGenerator):
             mu_tr, mu_val = mu_train[train_indices], mu_train[val_indices]
             X_tr, X_val = X_train[train_indices], X_train[val_indices]
             
-            self.estimator_optimizer, self.estimator_early_stopper = train_estimator(
-                self.X_given_Z_estimator,
+            self.estimator_optimizer = train_estimator(
+                self.mu_X_given_Z_estimator,
                 Z_tr, mu_tr, X_tr,
                 Z_val=Z_val, X_val=X_val,
                 epochs=self.estimator_epochs,
@@ -149,9 +220,8 @@ class CITDataGeneratorBase(DataGenerator):
                 lr=self.estimator_lr
             )
         elif self.mode == MODE_ONLINE:
-            self.X_given_Z_estimator = None
+            self.mu_X_given_Z_estimator = None
             self.estimator_optimizer = None
-            self.estimator_early_stopper = None
             self.accumulated_Z = None
             self.accumulated_X = None
             self.accumulated_gt_mu = None
@@ -191,33 +261,43 @@ class CITDataGeneratorBase(DataGenerator):
             if gt_mu_new is not None and self.accumulated_gt_mu is not None:
                 self.accumulated_gt_mu = torch.cat([self.accumulated_gt_mu, gt_mu_new], dim=0)
         
-        # Use true gt_mu if available (for debugging), otherwise use zeros
-        if self.accumulated_gt_mu is not None:
-            gt_mu = self.accumulated_gt_mu
-        else:
-            gt_mu = torch.zeros_like(self.accumulated_X)
-        
         # Create model if first time
-        if self.X_given_Z_estimator is None:
-            self.X_given_Z_estimator = self._create_estimator(input_dim=self.accumulated_Z.shape[1])
+        if self.mu_X_given_Z_estimator is None:
+            self.mu_X_given_Z_estimator = self._create_estimator(input_dim=self.accumulated_Z.shape[1])
         
-        # Continue training existing model
-        self.estimator_optimizer, self.estimator_early_stopper = train_estimator(
-            self.X_given_Z_estimator,
+        # Continue training existing model (gt_mu can be None for real data)
+        self.estimator_optimizer = train_estimator(
+            self.mu_X_given_Z_estimator,
             self.accumulated_Z, 
-            gt_mu,
+            self.accumulated_gt_mu,  # Can be None for real data
             self.accumulated_X,
             Z_val=Z_val,
             X_val=X_val,
             epochs=epochs,
             patience=self.estimator_patience,
             lr=self.estimator_lr,
-            optimizer=self.estimator_optimizer,  # Reuse optimizer state
-            early_stopper=self.estimator_early_stopper
+            optimizer=self.estimator_optimizer  # Reuse optimizer state for warm start
         )
 
+    def regenerate_all_tilde(self, data):
+        """
+        Regenerate all X_tilde values in a dataset using the updated estimator.
+        
+        Args:
+        - data: DatasetOperator or MergedDataset to regenerate X_tilde values for
+        """
+        if self.mu_X_given_Z_estimator is None:
+            return
+            
+        try:
+            if hasattr(data, 'regenerate_tilde'):
+                data.regenerate_tilde(self.mu_X_given_Z_estimator, self.z_dim)
+        except Exception as e:
+            import logging
+            logging.warning(f"Failed to regenerate X_tilde: {e}")
 
-def sample_X_tilde_given_Z_estimator(Z, X, X_given_Z_estimator):
+
+def sample_X_tilde_given_Z_estimator(Z, X, mu_X_given_Z_estimator):
     """
     Sample X_tilde using an estimator for the conditional mean.
     Common function used by both GaussianCIT and SinCIT.
@@ -225,7 +305,7 @@ def sample_X_tilde_given_Z_estimator(Z, X, X_given_Z_estimator):
     Args:
     - Z: Conditioning variables (n x d)
     - X: Original X values (n x 1), used to estimate residual variance
-    - X_given_Z_estimator: Trained estimator for E[X|Z], or None
+    - mu_X_given_Z_estimator: Trained estimator for E[X|Z], or None
     
     Returns:
     - X_tilde: Sampled values (n x 1). If estimator is None, returns X directly.
@@ -233,13 +313,13 @@ def sample_X_tilde_given_Z_estimator(Z, X, X_given_Z_estimator):
     X = torch.from_numpy(X).to(torch.float32) if isinstance(X, np.ndarray) else X
     
     # If no estimator yet (e.g., online mode at step=0), return X directly
-    if X_given_Z_estimator is None:
+    if mu_X_given_Z_estimator is None:
         return X
     
     Z = torch.from_numpy(Z).to(torch.float32) if isinstance(Z, np.ndarray) else Z
     Z = Z.to("cuda" if torch.cuda.is_available() else "cpu")
     with torch.no_grad():
-        mu = X_given_Z_estimator(Z).to("cpu")
+        mu = mu_X_given_Z_estimator(Z).to("cpu")
         residuals = X - mu
         sigma_hat = torch.std(residuals)
         epsilon = torch.randn_like(mu) * sigma_hat
