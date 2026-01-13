@@ -144,7 +144,7 @@ class Trainer:
         reject_null = 0.0
         
         # For online mode: update estimator with initial training data, use val for early stopping
-        self._update_online_estimator_if_needed(train_data, val_data)
+        self._update_online_estimator_if_needed(train_data)
         # Regenerate X_tilde for all data with updated estimator
         self.datagen.regenerate_all_tilde(train_data)
         self.datagen.regenerate_all_tilde(val_data)
@@ -171,7 +171,7 @@ class Trainer:
                     self.log({"all_sample_nums": len(train_data) + len(test_data)})
 
                     # Update online estimator with new training data for the next sequence
-                    self._update_online_estimator_if_needed(val_data, test_data)
+                    self._update_online_estimator_if_needed(val_data)
                     val_data = test_data
                     
                     # Regenerate X_tilde for ALL accumulated data with updated estimator
@@ -195,14 +195,14 @@ class Trainer:
             else:
                 self.log({"reject_null": reject_null})
 
-    def _update_online_estimator_if_needed(self, train_data, val_data=None):
+    def _update_online_estimator_if_needed(self, train_data):
         """
         Update the online estimator if the datagen supports online mode.
         After updating, regenerates all X_tilde values in accumulated datasets.
         
         Args:
         - train_data: Dataset containing training data to accumulate for estimator
-        - val_data: Dataset for early stopping during estimator training (optional)
+        - val_data: Unused, kept for API compatibility
         """
         # Check if datagen has online mode and update method
         if not hasattr(self.datagen, 'mode') or self.datagen.mode != MODE_ONLINE:
@@ -232,18 +232,8 @@ class Trainer:
             X_train = z_tensor[:, :1]  # (n, 1) - target variable
             Z_train = z_tensor[:, 1:z_dim+1]  # (n, z_dim) - conditioning variables
             
-            # Extract validation data if provided
-            Z_val, X_val = None, None
-            if val_data is not None:
-                z_val_tensor, _ = extract_from_data(val_data)
-                if z_val_tensor is not None:
-                    X_val = z_val_tensor[:, :1]  # target variable
-                    Z_val = z_val_tensor[:, 1:z_dim+1]  # conditioning variables
-            
-            self.datagen.update_online_estimator(Z_train, X_train, gt_mu_new=gt_mu, Z_val=Z_val, X_val=X_val)
-            logging.info(f"Updated online estimator with {len(z_tensor)} train samples" + 
-                        (f" and {len(z_val_tensor)} val samples" if Z_val is not None else "") +
-                        (f" (with ground truth mu)" if gt_mu is not None else ""))
+            self.datagen.update_online_estimator(Z_train, X_train, gt_mu_new=gt_mu)
+            logging.info(f"Updated online estimator with {len(z_tensor)} train samples")
 
         except Exception as e:
             logging.warning(f"Failed to update online estimator: {e}")

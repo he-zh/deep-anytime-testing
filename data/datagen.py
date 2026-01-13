@@ -140,14 +140,12 @@ class CITDataGeneratorBase(DataGenerator):
         self.estimator_drop_out = self.estimator_cfg.get('drop_out', True)
         self.estimator_drop_out_p = self.estimator_cfg.get('drop_out_p', 0.3)
         self.estimator_lr = self.estimator_cfg.get('lr', 0.001)
-        self.estimator_patience = self.estimator_cfg.get('patience', 10)
-        self.estimator_epochs = self.estimator_cfg.get('epochs', 500)
-        self.estimator_val_ratio = self.estimator_cfg.get('val_ratio', 0.2)  # For pseudo_model_x train/val split
+        self.estimator_epochs_pseudo = self.estimator_cfg.get('epochs_pseudo', 1000)  # For pseudo_model_x (trains once with more data)
+        self.estimator_epochs_online = self.estimator_cfg.get('epochs_online', 100)   # For online (trains incrementally)
         
         # Will be set by subclass or during training
         self.mu_X_given_Z_estimator = None
         self.estimator_optimizer = None
-        self.estimator_early_stopper = None
         self.accumulated_Z = None
         self.accumulated_X = None
         self.accumulated_gt_mu = None
@@ -200,23 +198,11 @@ class CITDataGeneratorBase(DataGenerator):
             # Create the model
             self.mu_X_given_Z_estimator = self._create_estimator(input_dim=Z_train.shape[1])
             
-            # Split data into train/val for early stopping
-            n = len(Z_train)
-            n_val = int(n * self.estimator_val_ratio)
-            indices = torch.randperm(n)
-            train_indices = indices[n_val:]
-            val_indices = indices[:n_val]
-            
-            Z_tr, Z_val = Z_train[train_indices], Z_train[val_indices]
-            mu_tr, mu_val = mu_train[train_indices], mu_train[val_indices]
-            X_tr, X_val = X_train[train_indices], X_train[val_indices]
-            
+            # Train on all data without validation split
             self.estimator_optimizer = train_estimator(
                 self.mu_X_given_Z_estimator,
-                Z_tr, mu_tr, X_tr,
-                Z_val=Z_val, X_val=X_val,
-                epochs=self.estimator_epochs,
-                patience=self.estimator_patience,
+                Z_train, mu_train, X_train,
+                epochs=self.estimator_epochs_pseudo,
                 lr=self.estimator_lr
             )
         elif self.mode == MODE_ONLINE:
@@ -228,7 +214,7 @@ class CITDataGeneratorBase(DataGenerator):
         else:
             raise ValueError(f"Unknown mode: {self.mode}. Choose from 'model_x', 'pseudo_model_x', 'online'.")
     
-    def update_online_estimator(self, Z_new, X_new, gt_mu_new=None, Z_val=None, X_val=None, epochs=None):
+    def update_online_estimator(self, Z_new, X_new, gt_mu_new=None, epochs=None):
         """
         Update the online estimator with new training data.
         Called by the trainer after each training sequence.
@@ -238,8 +224,6 @@ class CITDataGeneratorBase(DataGenerator):
         - Z_new (torch.Tensor): New Z training data (n x d-1)
         - X_new (torch.Tensor): New X training data (n x 1)
         - gt_mu_new (torch.Tensor, optional): True conditional mean (n x 1) for debugging
-        - Z_val (torch.Tensor, optional): Validation Z data for early stopping
-        - X_val (torch.Tensor, optional): Validation X data for early stopping
         - epochs (int, optional): Number of training epochs (uses config default if not specified)
         """
         if self.mode != MODE_ONLINE:
@@ -248,7 +232,7 @@ class CITDataGeneratorBase(DataGenerator):
         from .estimate_x_given_z import train_estimator
         
         if epochs is None:
-            epochs = self.estimator_epochs
+            epochs = self.estimator_epochs_online
             
         # Accumulate data
         if self.accumulated_Z is None:
@@ -271,10 +255,7 @@ class CITDataGeneratorBase(DataGenerator):
             self.accumulated_Z, 
             self.accumulated_gt_mu,  # Can be None for real data
             self.accumulated_X,
-            Z_val=Z_val,
-            X_val=X_val,
             epochs=epochs,
-            patience=self.estimator_patience,
             lr=self.estimator_lr,
             optimizer=self.estimator_optimizer  # Reuse optimizer state for warm start
         )

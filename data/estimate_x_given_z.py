@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from models.earlystopping import EarlyStopper
 
 class mu_X_Given_Z_Estimator(nn.Module):
     def __init__(self, input_dim=19, hidden_size=128, output_size=1, 
@@ -24,8 +23,8 @@ class mu_X_Given_Z_Estimator(nn.Module):
         return mu
 
 
-def train_estimator(model, Z_train, gt_mu, X_train, Z_val=None, X_val=None, 
-                    epochs=500, patience=10, lr=0.001,
+def train_estimator(model, Z_train, gt_mu, X_train,
+                    epochs=500, lr=0.001,
                     optimizer=None):
     """
     Train an estimator for E[X|Z].
@@ -35,10 +34,7 @@ def train_estimator(model, Z_train, gt_mu, X_train, Z_val=None, X_val=None,
     - Z_train: Training conditioning variables
     - gt_mu: Ground truth mean (for debugging loss, can be None for real data)
     - X_train: Training target variable
-    - Z_val: Validation conditioning variables (optional, for early stopping)
-    - X_val: Validation target variable (optional, for early stopping)
     - epochs: Maximum number of training epochs
-    - patience: Early stopping patience
     - lr: Learning rate
     - optimizer: Existing optimizer (optional, for online mode to maintain momentum)
     
@@ -59,19 +55,9 @@ def train_estimator(model, Z_train, gt_mu, X_train, Z_val=None, X_val=None,
             torch.utils.data.TensorDataset(Z_train, X_train), 
             batch_size=128, shuffle=True)
     
-    # Create validation dataloader if validation data is provided
-    val_dataloader = None
-    if Z_val is not None and X_val is not None:
-        val_dataloader = torch.utils.data.DataLoader(
-            torch.utils.data.TensorDataset(Z_val, X_val), 
-            batch_size=128, shuffle=False)
-    
     # Create or reuse optimizer (reuse maintains momentum for warm-starting)
     if optimizer is None:
         optimizer = optim.Adam(model.parameters(), lr=lr)
-    
-    # Always create a fresh early stopper for each training session
-    early_stopper = EarlyStopper(patience=patience, min_delta=0)
     
     criterion = nn.MSELoss()
     
@@ -112,32 +98,11 @@ def train_estimator(model, Z_train, gt_mu, X_train, Z_val=None, X_val=None,
         train_loss /= len(train_dataloader.dataset)
         gt_loss_avg = gt_loss_sum / len(train_dataloader.dataset) if has_gt_mu else None
         
-        # Validation and early stopping
-        if val_dataloader is not None:
-            model.eval()
-            val_loss = 0.0
-            with torch.no_grad():
-                for Z_batch, X_batch in val_dataloader:
-                    Z_batch = Z_batch.to(device)
-                    X_batch = X_batch.to(device)
-                    mu = model(Z_batch)
-                    val_loss += criterion(mu, X_batch).item() * len(X_batch)
-            val_loss /= len(val_dataloader.dataset)
-            
-            if has_gt_mu:
-                print(f"Epoch {epoch+1}, Train: {train_loss:.4f}, Val: {val_loss:.4f}, GT: {gt_loss_avg:.4f}", end='\r')
-            else:
-                print(f"Epoch {epoch+1}, Train: {train_loss:.4f}, Val: {val_loss:.4f}", end='\r')
-            
-            # Early stopping check
-            if early_stopper.early_stop(val_loss):
-                print(f"\nEarly stopping at epoch {epoch+1}, best val loss: {early_stopper.min_validation_loss:.4f}")
-                break
+        # Print training progress
+        if has_gt_mu:
+            print(f"Epoch {epoch+1}, Train: {train_loss:.4f}, GT: {gt_loss_avg:.4f}", end='\r')
         else:
-            if has_gt_mu:
-                print(f"Epoch {epoch+1}, Train: {train_loss:.4f}, GT: {gt_loss_avg:.4f}", end='\r')
-            else:
-                print(f"Epoch {epoch+1}, Train: {train_loss:.4f}", end='\r')
+            print(f"Epoch {epoch+1}, Train: {train_loss:.4f}", end='\r')
     
     print()  # New line after training
     model.eval()
