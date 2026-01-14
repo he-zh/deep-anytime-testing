@@ -6,16 +6,26 @@ class mu_X_Given_Z_Estimator(nn.Module):
     def __init__(self, input_dim=19, hidden_size=128, output_size=1, 
                  layer_norm=True, drop_out=True, drop_out_p=0.3):
         super().__init__()
-        # Configurable architecture similar to MLP
-        layers = [nn.Linear(input_dim, hidden_size)]
-        if layer_norm:
-            layers.append(nn.LayerNorm(hidden_size))
-        layers.append(nn.ReLU())
-        if drop_out:
-            layers.append(nn.Dropout(drop_out_p))
+        # Support both single int and list of ints for hidden_size
+        if isinstance(hidden_size, int):
+            hidden_sizes = [hidden_size]
+        else:
+            hidden_sizes = list(hidden_size)
+        
+        # Build hidden layers
+        layers = []
+        prev_size = input_dim
+        for h_size in hidden_sizes:
+            layers.append(nn.Linear(prev_size, h_size))
+            if layer_norm:
+                layers.append(nn.LayerNorm(h_size))
+            layers.append(nn.ReLU())
+            if drop_out:
+                layers.append(nn.Dropout(drop_out_p))
+            prev_size = h_size
         
         self.shared = nn.Sequential(*layers)
-        self.output = nn.Linear(hidden_size, output_size)
+        self.output = nn.Linear(prev_size, output_size)
 
     def forward(self, z):
         h = self.shared(z)

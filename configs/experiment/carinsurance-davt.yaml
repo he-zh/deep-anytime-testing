@@ -1,0 +1,69 @@
+# @package _global_
+defaults:
+  - /data: carinsurance
+  - /model: mlp
+  - /operator@tau1:
+      - projection
+  - /operator@tau2:
+      - swap
+      - projection
+
+
+project: "Test"
+
+wandb:
+  disabled: false
+  group: "online_${wandb.task}_${data.state}_${data.type}_davt_mlp_128_${model.output_size}_bs${data.samples}_T${train.T}"
+  task: "carinsurance"
+  tags: ["test", "davt", "online"]
+
+
+tau1:
+  projection:
+    input_dim: 0
+
+tau2:
+  swap:
+    p: 3  # data.z_dim + 2
+    d: 0
+  projection:
+    input_dim: 0
+
+
+model:
+  input_size: 3  # a(1) + c(1) + b(1) = 3
+  hidden_layer_size: [128]
+  layer_norm: true
+  drop_out: true
+  drop_out_p: 0.3
+  output_size: 1
+  bias: true
+
+data:
+  data_seed: ${train.seed}
+  samples: 50
+  type: "type2"  # "type1" for null hypothesis (H0), "type2" for alternative (H1)
+  mode: "online"  # Options: "online"
+  data_path: "/scratch0/zhhe/data/car_insurance"
+  state: "ca"
+  n_vals: 20
+  company: null
+  company_idx: 0
+  normalize: true
+  verbose: false
+
+train:
+  seed: 0
+  lr: 0.0005
+  earlystopping:
+    patience: 10
+    delta: 0.0
+  epochs: 500
+  seqs: 100 # number of mini-batches
+  T: 0 #Warm start number of mini-batches used for the training only
+  alpha: 0.05 # significance level
+  batch_size: ${data.samples}
+  l1_lambda: 0.0
+  l2_lambda: 0.0
+  save: false
+  save_dir: ""

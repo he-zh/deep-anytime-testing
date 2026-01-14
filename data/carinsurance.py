@@ -270,7 +270,7 @@ class CarInsuranceCITGen(CITDataGeneratorBase):
     incrementally as data accumulates across sequences.
     """
 
-    def __init__(self, type, samples, data_seed, data_path, state='ca', n_vals=20, 
+    def __init__(self, type, samples, data_seed, data_path, mode=MODE_ONLINE, state='ca', n_vals=20, 
                  company=None, company_idx=None, normalize=True, verbose=False,
                  estimator_cfg=None):
         """

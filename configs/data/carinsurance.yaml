@@ -1,0 +1,22 @@
+_target_: "data.carinsurance.CarInsuranceCITGen"
+samples: 100
+type: "type2"
+data_seed: 0
+data_path: "data/carinsurance"  # Path to directory containing state CSV files
+state: "ca"  # State code: 'ca', 'il', 'mo', 'tx'
+n_vals: 20  # Number of bins for discretizing state_risk (for type1)
+company: null  # Optional: specific company name filter
+company_idx: null  # Optional: 0-based company index (alternative to company)
+normalize: true  # Whether to z-score normalize continuous variables
+verbose: false  # Whether to print debug information
+
+
+# Estimator configuration (used in online modes)
+estimator_cfg:
+  hidden_size: 128
+  layer_norm: true
+  drop_out: true
+  drop_out_p: 0.3
+  lr: 0.0001
+  epochs_pseudo: 1000  # For pseudo_model_x (trains once with more data)
+  epochs_online: 300   # For online (trains incrementally)
