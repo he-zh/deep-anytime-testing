@@ -145,9 +145,9 @@ class Trainer:
         
         # For online mode: update estimator with initial training data, use val for early stopping
         self._update_online_estimator_if_needed(train_data)
-        # Regenerate X_tilde for all data with updated estimator
-        self.datagen.regenerate_all_tilde(train_data)
-        self.datagen.regenerate_all_tilde(val_data)
+        # Regenerate X_tilde for all data with updated estimator (only in online mode)
+        self._regenerate_tilde_if_online(train_data)
+        self._regenerate_tilde_if_online(val_data)
         train_loader = DataLoader(train_data, batch_size=self.bs, shuffle=True)
         val_loader = DataLoader(val_data, batch_size=self.bs, shuffle=True)
         
@@ -174,9 +174,9 @@ class Trainer:
                     self._update_online_estimator_if_needed(val_data)
                     val_data = test_data
                     
-                    # Regenerate X_tilde for ALL accumulated data with updated estimator
-                    self.datagen.regenerate_all_tilde(train_data)
-                    self.datagen.regenerate_all_tilde(val_data)
+                    # Regenerate X_tilde for ALL accumulated data with updated estimator (only in online mode)
+                    self._regenerate_tilde_if_online(train_data)
+                    self._regenerate_tilde_if_online(val_data)
 
                     
                     train_loader = DataLoader(train_data, batch_size=self.bs, shuffle=True)
@@ -195,6 +195,20 @@ class Trainer:
             else:
                 self.log({"reject_null": reject_null})
 
+    def _regenerate_tilde_if_online(self, data):
+        """
+        Regenerate X_tilde values only if in online mode.
+        
+        In pseudo_model_x mode, the estimator is fixed after pre-training,
+        so there's no need to regenerate X_tilde.
+        
+        Args:
+        - data: Dataset to regenerate X_tilde for
+        """
+        if not hasattr(self.datagen, 'mode') or self.datagen.mode != MODE_ONLINE:
+            return
+        self.datagen.regenerate_all_tilde(data)
+
     def _update_online_estimator_if_needed(self, train_data):
         """
         Update the online estimator if the datagen supports online mode.
@@ -202,7 +216,6 @@ class Trainer:
         
         Args:
         - train_data: Dataset containing training data to accumulate for estimator
-        - val_data: Unused, kept for API compatibility
         """
         # Check if datagen has online mode and update method
         if not hasattr(self.datagen, 'mode') or self.datagen.mode != MODE_ONLINE:
@@ -211,8 +224,8 @@ class Trainer:
             return
             
         # Extract X and Z from the dataset
-        # The data structure is: z = (X, Y) concatenated, shape (n, d+1, 2)
-        # where X = (X_val, Z_cov), so X_val is at index 0, Z_cov is at indices 1:d
+        # The data structure is: z = (X, Z_cov, Y) concatenated, shape (n, total_dim, 2)
+        # where X is at indices 0:x_dim, Z_cov is at indices x_dim:x_dim+z_dim
         try:
             # Helper to extract tensors and ground_truth_mu from dataset
             def extract_from_data(data):
@@ -225,12 +238,15 @@ class Trainer:
             z_tensor, gt_mu = extract_from_data(train_data)
             if z_tensor is None:
                 return
-                
-            # z_tensor shape: (n, total_dim) where total_dim = X_target(1) + Z_cov(z_dim) + Y(1)
-            # X_target is at index 0, Z_cov is at indices 1:(z_dim+1)
+            
+            # Get dimensions from datagen
             z_dim = self.datagen.z_dim
-            X_train = z_tensor[:, :1]  # (n, 1) - target variable
-            Z_train = z_tensor[:, 1:z_dim+1]  # (n, z_dim) - conditioning variables
+            x_dim = self.datagen.x_dim if hasattr(self.datagen, 'x_dim') else 1
+                
+            # z_tensor shape: (n, total_dim) where total_dim = X_target(x_dim) + Z_cov(z_dim) + Y(y_dim)
+            # X_target is at indices 0:x_dim, Z_cov is at indices x_dim:x_dim+z_dim
+            X_train = z_tensor[:, :x_dim]  # (n, x_dim) - target variable
+            Z_train = z_tensor[:, x_dim:x_dim+z_dim]  # (n, z_dim) - conditioning variables
             
             self.datagen.update_online_estimator(Z_train, X_train, gt_mu_new=gt_mu)
             logging.info(f"Updated online estimator with {len(z_tensor)} train samples")

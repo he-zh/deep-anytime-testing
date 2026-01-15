@@ -1,0 +1,287 @@
+"""
+RatInABox (Rat in a Box) Dataset for Conditional Independence Testing.
+
+Adapted from the kernel-ci-testing repository:
+https://github.com/romanpogodin/kernel-ci-testing
+
+This dataset simulates neural recordings from a rat navigating a maze.
+It uses head direction cells, grid cells, and their combinations to test
+conditional independence.
+
+The setup:
+- A: Head direction cell population (dependent on actual head direction under H1)
+- B: Combined head direction + grid cell population  
+- C: Position and head direction (conditioning variable)
+
+Under H0: A uses independent noise, making A ⊥ B | C
+Under H1: A uses actual head direction, so A ⊥̸ B | C
+
+Requires pre-generated data files from RatInABox simulations.
+See: https://github.com/RatInABox-Lab/RatInABox/
+"""
+
+import numpy as np
+import torch
+import os
+from torch.utils.data import Dataset
+
+from .datagen import (
+    DatasetOperator, CITDataGeneratorBase, 
+    MODE_MODEL_X, MODE_PSEUDO_MODEL_X, MODE_ONLINE,
+    sample_from_estimator, ESTIMATOR_MLP, ESTIMATOR_GMMN
+)
+
+
+def load_rat_data_full(data_path, seed, ground_truth, n_cells=100, noise_std=0.1, max_n_points=3000):
+    """
+    Load the full pre-generated rat neural recording data file.
+    
+    Args:
+        data_path: Path to directory containing .npy data files
+        seed: Seed index (determines which data file to load)
+        ground_truth: 'H0' for null hypothesis, 'H1' for alternative
+        n_cells: Number of cells in the simulation
+        noise_std: Noise standard deviation used in generation
+        max_n_points: Maximum number of points in the data file
+    
+    Returns:
+        a: Head direction cell responses (max_n_points, n_cells)
+        b: Combined head+grid cell responses (max_n_points, n_cells)  
+        c: Position and head direction (max_n_points, 4) - [x, y, head_dir]
+    """
+    filename = f'{n_cells}_cells_{max_n_points}_points_noise_{noise_std}_seed_{seed}.npy'
+    path = os.path.join(data_path, filename)
+    
+    data = np.load(path, allow_pickle=True).item()
+    
+    if ground_truth == 'H0':
+        # Under H0: use independent head direction cells (not dependent on actual head direction)
+        a = np.maximum(data['head_dir_ind_rate'], 0)
+    else:  # H1
+        # Under H1: use actual head direction cells (dependent on head direction)
+        a = np.maximum(data['head_dir_rate'], 0)
+    
+    # B: Combined head direction + grid cells
+    b_1 = np.maximum(data['head_dir_rate'], 0)
+    b_2 = data['grid_rate']
+    b = np.maximum(b_1 + b_2 - 1, 0)
+    
+    # C: Position (x, y) and head direction
+    c_pos = data['pos']  # (max_n_points, 2)
+    c_hd = data['head_direction']  # (max_n_points, 2) or (max_n_points,)
+    if c_hd.ndim == 1:
+        c_hd = c_hd.reshape(-1, 1)
+    c = np.concatenate([c_pos, c_hd], axis=1)  # (max_n_points, 4)
+    
+    return a, b, c
+
+
+class RatInABoxCIT(DatasetOperator):
+    """
+    RatInABox Conditional Independence Test dataset.
+    
+    Tests: A (head direction cells) ⊥ B (head+grid cells) | C (position, head direction)
+    
+    Data structure follows the same pattern as other CIT datasets:
+    - Z = [A, C, B] concatenated
+    - Z_tilde = [A_tilde, C, B] where A_tilde is sampled from estimated E[A|C] or P(A|C)
+    - self.z = stack([Z, Z_tilde], dim=2)
+    """
+
+    def __init__(self, a, b, c, tau1, tau2, estimator=None, estimator_type=ESTIMATOR_MLP,
+                 use_shrinkage_cov=False, shrinkage_alpha=0.0, cov_cholesky=None):
+        """
+        Initialize the RatInABoxCIT object from pre-loaded data arrays.
+
+        Args:
+            a: Head direction cell responses tensor (n, a_dim)
+            b: Combined head+grid cell responses tensor (n, b_dim)
+            c: Position and head direction tensor (n, c_dim)
+            tau1: Transform operator 1
+            tau2: Transform operator 2
+            estimator: Pretrained estimator for A given C (MLP or GMMN).
+            estimator_type: Type of estimator ('mlp', 'gmmn').
+            use_shrinkage_cov: Whether to use shrinkage covariance for MLP sampling.
+            shrinkage_alpha: Shrinkage strength for covariance.
+            cov_cholesky: Pre-computed Cholesky factor of global covariance (optional).
+        """
+        super().__init__(tau1, tau2)
+
+        # Store original tensors for reference
+        self.a = a
+        self.b = b
+        self.c = c
+        
+        # No ground truth conditional mean for this pre-simulated data
+        self.ground_truth_mu = None
+        
+        # Create A_tilde using the unified sampling function
+        a_tilde = sample_from_estimator(c, a, estimator, estimator_type,
+                                        use_shrinkage_cov=use_shrinkage_cov,
+                                        shrinkage_alpha=shrinkage_alpha,
+                                        cov_cholesky=cov_cholesky).to('cpu')
+        
+        # Construct X and Y (same structure as SinCIT)
+        # X = [A, C], Y = B
+        X = torch.cat((a, c), dim=1)  # (n, a_dim + c_dim)
+        Y = b  # (n, b_dim)
+        X_tilde = torch.cat((a_tilde, c), dim=1)  # (n, a_dim + c_dim)
+        
+        # Concatenate tensors: Z = [X, Y] = [A, C, B]
+        Z = torch.cat((X, Y), dim=1)  # (n, a_dim + c_dim + b_dim)
+        Z_tilde = torch.cat((X_tilde, Y), dim=1)  # (n, a_dim + c_dim + b_dim)
+        
+        # Stack for the standard CIT interface
+        self.z = torch.stack([Z, Z_tilde], dim=2)  # (n, total_dim, 2)
+
+    @classmethod
+    def from_datasets(cls, datasets):
+        """Combine multiple RatInABoxCIT datasets."""
+        combined = cls.__new__(cls)
+        combined.a = torch.cat([d.a for d in datasets], dim=0)
+        combined.b = torch.cat([d.b for d in datasets], dim=0)
+        combined.c = torch.cat([d.c for d in datasets], dim=0)
+        combined.z = torch.cat([d.z for d in datasets], dim=0)
+        combined.ground_truth_mu = None
+        combined.tau1 = datasets[0].tau1
+        combined.tau2 = datasets[0].tau2
+        return combined
+
+
+class RatInABoxCITGen(CITDataGeneratorBase):
+    """
+    RatInABox CIT Data Generator.
+    
+    Generates datasets from pre-computed rat neural simulation data.
+    Loads the full dataset for the given data_seed and samples without
+    replacement across sequences.
+    
+    Supports pseudo_model_x and online modes for estimating E[A|C] or P(A|C).
+    Note: model_x mode is not supported since there's no known true generative model.
+    
+    Supports two estimator types:
+    - 'mlp': Standard MLP that estimates E[A|C], samples using mean + Gaussian noise
+    - 'gmmn': Generative Moment Matching Network that learns P(A|C) via MMD
+    """
+
+    def __init__(self, type, samples, data_seed, data_path, n_cells=100, c_dim=3, 
+                 noise_std=0.1, max_n_points=3000,
+                 mode=MODE_PSEUDO_MODEL_X, pretrain_samples=1000, estimator_cfg=None):
+        """
+        Initialize the RatInABoxCITGen object.
+
+        Args:
+            type: 'type1' for H0, 'type2' for H1
+            samples: Number of samples per batch
+            data_seed: Seed determining which data file to load
+            data_path: Path to directory with pre-generated .npy files
+            n_cells: Number of cells in the simulation (determines a_dim and b_dim)
+            c_dim: Dimension of conditioning variable C (position + head direction = 3)
+            noise_std: Noise standard deviation used in data generation
+            max_n_points: Maximum number of points in the data file
+            mode: Mode for A|C estimation. One of 'pseudo_model_x', 'online'.
+                  Note: 'model_x' is not supported (no true generative model).
+            pretrain_samples: Number of samples for pre-training estimator (only used in pseudo_model_x mode)
+            estimator_cfg: Config for estimator model (hidden_size, epochs, lr, etc.)
+        """
+        # Validate mode - model_x is not supported for RatInABox
+        if mode == MODE_MODEL_X:
+            raise ValueError("model_x mode is not supported for RatInABox. Use 'pseudo_model_x' or 'online'.")
+        
+        # Initialize base class first
+        super().__init__(type, samples, data_seed, mode, pretrain_samples, estimator_cfg)
+        
+        # Set estimator type settings (overrides base class defaults)
+        self.data_path = data_path
+        self.n_cells = n_cells
+        self._z_dim = c_dim
+        self._x_dim = n_cells
+        self.noise_std = noise_std
+        self.max_n_points = max_n_points
+        
+        # Load the full dataset for this data_seed
+        ground_truth = 'H0' if type == 'type1' else 'H1'
+        a_np, b_np, c_np = load_rat_data_full(
+            data_path=data_path,
+            seed=data_seed,
+            ground_truth=ground_truth,
+            n_cells=n_cells,
+            noise_std=noise_std,
+            max_n_points=max_n_points
+        )
+        
+        # Store full data as tensors
+        self.full_a = torch.tensor(a_np, dtype=torch.float32)
+        self.full_b = torch.tensor(b_np, dtype=torch.float32)
+        self.full_c = torch.tensor(c_np, dtype=torch.float32)
+        
+        # Initialize available indices for non-replacement sampling
+        self.available_indices = list(range(max_n_points))
+        
+        # Shuffle the available indices once based on data_seed
+        self.rng = np.random.default_rng(seed=data_seed)
+        self.rng.shuffle(self.available_indices)
+        self.current_idx = 0  # Pointer to track where we are in the shuffled indices
+        
+        # Initialize estimator based on mode
+        self._initialize_mode(mode, pretrain_samples)
+
+    def _initialize_mode(self, mode, pretrain_samples):
+        """Initialize estimator based on mode (supports all estimator types)."""
+        if mode == MODE_PSEUDO_MODEL_X:
+            # Use first pretrain_samples for pre-training the estimator
+            if pretrain_samples > self.max_n_points:
+                pretrain_samples = self.max_n_points // 2
+            
+            pretrain_indices = self.available_indices[:pretrain_samples]
+            self.current_idx = pretrain_samples  # Skip these samples for training
+            
+            C_train = self.full_c[pretrain_indices]
+            A_train = self.full_a[pretrain_indices]
+            
+            # Use unified _init_estimator which now handles all estimator types
+            self._init_estimator(C_train, None, A_train)
+        else:
+            # Online mode - initialize with None
+            self._init_estimator(None, None, None)
+
+    def generate(self, seed, tau1, tau2, samples=None) -> RatInABoxCIT:
+        """
+        Generate data by sampling without replacement from the loaded dataset.
+
+        Args:
+            seed: Not used for sampling (kept for API compatibility)
+            tau1: Transform operator 1
+            tau2: Transform operator 2
+            samples: Optional override for number of samples
+
+        Returns:
+            Dataset: A RatInABoxCIT dataset
+        """
+        samples = self.samples if samples is None else samples
+        modified_seed = (self.data_seed + 1) * 1000 + seed
+        torch.manual_seed(modified_seed)
+        np.random.seed(modified_seed)
+        # Check if we have enough samples left
+        if self.current_idx + samples > self.max_n_points:
+            raise ValueError(
+                f"Not enough samples left for non-replacement sampling. "
+                f"Requested {samples}, but only {self.max_n_points - self.current_idx} remaining. "
+                f"Consider using a larger data file or fewer sequences."
+            )
+        
+        # Get the next batch of indices (without replacement)
+        batch_indices = self.available_indices[self.current_idx:self.current_idx + samples]
+        self.current_idx += samples
+        
+        # Extract data for these indices
+        a = self.full_a[batch_indices]
+        b = self.full_b[batch_indices]
+        c = self.full_c[batch_indices]
+        
+        return RatInABoxCIT(a, b, c, tau1, tau2, 
+                           estimator=self.estimator,
+                           estimator_type=self.estimator_type,
+                           use_shrinkage_cov=self.use_shrinkage_cov,
+                           shrinkage_alpha=self.shrinkage_alpha,
+                           cov_cholesky=self._global_cov_cholesky)

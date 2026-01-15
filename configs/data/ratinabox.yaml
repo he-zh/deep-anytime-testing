@@ -1,0 +1,32 @@
+_target_: "data.ratinabox.RatInABoxCITGen"
+samples: 100
+type: "type2"  # type1 for H0 (independent), type2 for H1 (dependent)
+data_seed: 0
+data_path: "data/ratinabox"  # Path to directory containing .npy data files
+n_cells: 100  # Number of cells in the simulation (a_dim=n_cells, b_dim=n_cells)
+c_dim: 4  # Position (x, y) + head direction
+noise_std: 0.1  # Noise standard deviation used in data generation
+max_n_points: 3000  # Maximum number of points in the data file
+mode: "online"  # Options: "pseudo_model_x", "online" (model_x not supported)
+pretrain_samples: 3000  # Number of samples for pre-training (only used in pseudo_model_x mode)
+
+
+# Estimator configuration (used in pseudo_model_x and online modes)
+estimator_cfg:
+  hidden_size: [128]  # List of hidden layer sizes
+  layer_norm: true
+  drop_out: true
+  drop_out_p: 0.3
+  lr: 0.0001
+  epochs_pseudo: 1000  # For pseudo_model_x (trains once with more data)
+  epochs_online: 300   # For online (trains incrementally)
+  # Estimator type: 'mlp' or 'gmmn'
+  # - 'mlp': Standard MLP that estimates E[A|C], samples using mean + Gaussian noise
+  # - 'gmmn': Generative Moment Matching Network that learns G(η,c) ≈ P(A|C)
+  estimator_type: "mlp"
+  use_shrinkage_cov: true  # Whether to use shrinkage covariance for MLP sampling
+  shrinkage_alpha: 0.1  # Shrinkage strength for covariance (only used when estimator_type='mlp')
+  noise_dim: 64  # Noise dimension η (only used when estimator_type='gmmn')
+  gmmn_kernel: "rbf"  # Kernel type for MMD: 'rbf' or 'imq' (only used when estimator_type='gmmn')
+  gmmn_M_train: 5  # Number of samples per Z during GMMN training
+  gmmn_grad_clip: 0.5  # Gradient clipping for GMMN stability

@@ -21,7 +21,7 @@ import scipy.stats as stats
 
 from .datagen import (
     DatasetOperator, CITDataGeneratorBase,
-    MODE_ONLINE, sample_X_tilde_given_Z_estimator
+    MODE_ONLINE, sample_from_estimator, ESTIMATOR_MLP
 )
 
 
@@ -209,26 +209,27 @@ class CarInsuranceCIT(DatasetOperator):
     The test structure is: [a, c, b] where we estimate a|c and sample a_tilde.
     """
 
-    def __init__(self, a, b, c, tau1, tau2, mu_X_given_Z_estimator=None):
+    def __init__(self, a, b, c, tau1, tau2, estimator=None, estimator_type=ESTIMATOR_MLP):
         """
         Initialize the CarInsuranceCIT object from pre-loaded data arrays.
 
         Args:
             a: Premium tensor (Y) - shape (n, 1)
-            b: Minority status tensor (X) - shape (n, 1)
+            b: Minority status tensor (X) - binary - shape (n, 1)
             c: State risk tensor (Z) - shape (n, 1)
             tau1: First transformation operator
             tau2: Second transformation operator
-            mu_X_given_Z_estimator: Trained estimator for E[a|c], or None for online mode
+            estimator: Trained estimator for E[a|c], or None for online mode
+            estimator_type: Type of estimator ('mlp', 'gmmn')
         """
         super().__init__(tau1, tau2)
         
         # No ground truth conditional mean for real data
         self.ground_truth_mu = None
-        
+
         # Generate a_tilde using the estimator (online mode)
         # a_tilde is sampled from estimated distribution of a|c
-        a_tilde = sample_X_tilde_given_Z_estimator(c, a, mu_X_given_Z_estimator).to('cpu')
+        a_tilde = sample_from_estimator(c, a, estimator, estimator_type).to('cpu')
         
         # Construct X and Y for the test
         # X = [a, c], Y = b
@@ -332,6 +333,8 @@ class CarInsuranceCITGen(CITDataGeneratorBase):
         
         # Z dimension for the estimator (c dimension = 1)
         self._z_dim = 1
+        # X dimension for the estimator (a dimension = 1)
+        self._x_dim = 1
 
         # Initialize available indices for non-replacement sampling
         self.available_indices = list(range(self.max_n_points))
@@ -352,10 +355,6 @@ class CarInsuranceCITGen(CITDataGeneratorBase):
             print(f"CarInsuranceCITGen initialized: {self.max_n_points} total samples, "
                   f"state={state}, company={company}, mode=online")
 
-    @property
-    def z_dim(self):
-        """Dimension of conditioning variable Z (c)."""
-        return self._z_dim
 
     def get_remaining_samples(self):
         """Get the number of remaining samples available for sampling."""
@@ -375,6 +374,9 @@ class CarInsuranceCITGen(CITDataGeneratorBase):
             Dataset: A CarInsuranceCIT dataset
         """
         samples = self.samples if samples is None else samples
+        modified_seed = (self.data_seed + 1) * 1000 + seed
+        torch.manual_seed(modified_seed)
+        np.random.seed(modified_seed)
         
         # Check if we have enough samples left
         if self.current_idx + samples > self.max_n_points:
@@ -394,4 +396,4 @@ class CarInsuranceCITGen(CITDataGeneratorBase):
         c = self.full_c[batch_indices]
         
         return CarInsuranceCIT(a, b, c, tau1, tau2, 
-                               mu_X_given_Z_estimator=self.mu_X_given_Z_estimator)
+                               estimator=self.estimator, estimator_type=self.estimator_type)

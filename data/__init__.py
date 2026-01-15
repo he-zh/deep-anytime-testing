@@ -1,6 +1,9 @@
 from .datagen import (
     MODE_MODEL_X, MODE_PSEUDO_MODEL_X, MODE_ONLINE,
-    CITDataGeneratorBase, MergedDataset, sample_X_tilde_given_Z_estimator
+    ESTIMATOR_MLP, ESTIMATOR_GMMN,
+    CITDataGeneratorBase, MergedDataset, 
+    sample_X_tilde_given_Z_estimator, sample_X_tilde_given_Z_gmmn, 
+    sample_from_estimator
 )
 from .blob import BlobData, BlobDataGen
 from .rotatedmnist import MnistRotDataset, RotatedMnistDataGen
@@ -11,4 +14,8 @@ from .carinsurance import (
     get_available_states, get_companies_for_state, get_num_companies,
     get_company_by_index, get_company_sample_size
 )
-from .estimate_x_given_z import mu_X_Given_Z_Estimator, train_estimator
+from .ratinabox import RatInABoxCIT, RatInABoxCITGen, load_rat_data_full
+from .estimate_x_given_z import (
+    mu_X_Given_Z_Estimator, train_estimator,
+    GMMN_Estimator, train_gmmn_estimator
+)

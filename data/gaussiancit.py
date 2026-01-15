@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 from .datagen import (
     DatasetOperator, CITDataGeneratorBase, 
     MODE_MODEL_X, MODE_PSEUDO_MODEL_X, MODE_ONLINE,
-    sample_X_tilde_given_Z_estimator
+    sample_from_estimator, ESTIMATOR_MLP
 )
 
 
@@ -49,7 +49,8 @@ class GaussianCIT(DatasetOperator):
     This class is responsible for creating a Gaussian CIT dataset.
     """
 
-    def __init__(self, type, samples, seed, tau1, tau2, u, v, z_dim, mode=MODE_MODEL_X, mu_X_given_Z_estimator=None):
+    def __init__(self, type, samples, seed, tau1, tau2, u, v, z_dim, mode=MODE_MODEL_X, 
+                 estimator=None, estimator_type=ESTIMATOR_MLP):
         """
         Initialize the GaussianCIT object.
 
@@ -63,7 +64,8 @@ class GaussianCIT(DatasetOperator):
         - v (numpy.ndarray): Another parameter for generating CIT data.
         - z_dim (int): Dimension of conditioning variable Z.
         - mode (str): Mode for X|Z estimation. One of MODE_MODEL_X, MODE_PSEUDO_MODEL_X, MODE_ONLINE.
-        - mu_X_given_Z_estimator (mu_X_Given_Z_Estimator, optional): Pretrained estimator for X given Z.
+        - estimator: Pretrained estimator for X given Z.
+        - estimator_type: Type of estimator ('mlp', 'gmmn').
         """
         super().__init__(tau1, tau2)
 
@@ -86,7 +88,7 @@ class GaussianCIT(DatasetOperator):
             # Use estimator (pseudo_model_x or online mode)
             Z_cov = X[:, 1:]  # Conditioning variables
             X_target = X[:, :1]  # Target variable
-            X_tilde = sample_X_tilde_given_Z_estimator(Z_cov, X_target, mu_X_given_Z_estimator).to('cpu')
+            X_tilde = sample_from_estimator(Z_cov, X_target, estimator, estimator_type).to('cpu')
         
         
         X_tilde = torch.cat((X_tilde, X[:, 1:]), dim=1)
@@ -124,8 +126,10 @@ class GaussianCITGen(CITDataGeneratorBase):
         - pretrain_samples (int): Number of samples for pre-training estimator (only used in pseudo_model_x mode).
         - estimator_cfg (dict, optional): Config for estimator model.
         """
+        # Initialize base class first (don't call _init_estimator yet)
         super().__init__(type, samples, data_seed, mode, pretrain_samples, estimator_cfg)
         self._z_dim = z_dim
+        self._x_dim = 1
         self.d = z_dim + 1 + 1  # Total dimension: X(1) + Z(z_dim) + Y(1)
         
         # Generate random vectors for u and v
@@ -134,11 +138,6 @@ class GaussianCITGen(CITDataGeneratorBase):
         
         # Initialize estimator based on mode
         self._initialize_mode(mode, pretrain_samples, type)
-    
-    @property
-    def z_dim(self):
-        """Dimension of conditioning variable Z."""
-        return self._z_dim
         
     def _initialize_mode(self, mode, pretrain_samples, type):
         """Initialize estimator based on mode."""
@@ -165,6 +164,6 @@ class GaussianCITGen(CITDataGeneratorBase):
         - Dataset: A dataset generated using GaussianCIT.
         """
         # Use a modified seed value based on the provided seed and class's data_seed
-        modified_seed = (self.data_seed + 1) * 100 + seed
+        modified_seed = (self.data_seed + 1) * 1000 + seed
         return GaussianCIT(self.type, self.samples, modified_seed, tau1, tau2, self.u, self.v,
-                          z_dim=self._z_dim, mode=self.mode, mu_X_given_Z_estimator=self.mu_X_given_Z_estimator)
+                          z_dim=self._z_dim, mode=self.mode, estimator=self.estimator)

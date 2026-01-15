@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from .datagen import (
     DatasetOperator, CITDataGeneratorBase,
     MODE_MODEL_X, MODE_PSEUDO_MODEL_X, MODE_ONLINE,
-    sample_X_tilde_given_Z_estimator
+    sample_from_estimator, ESTIMATOR_MLP
 )
 
 
@@ -78,7 +78,7 @@ class SinCIT(DatasetOperator):
 
     def __init__(self, type, samples, z_dim, seed, tau1, tau2, beta=1.0, alpha=0.1, 
                  ca_dim_idx=0, cb_dim_idx=0, cr_dim_idx=0,
-                 mode=MODE_MODEL_X, mu_X_given_Z_estimator=None):
+                 mode=MODE_MODEL_X, estimator=None, estimator_type=ESTIMATOR_MLP):
         """
         Initialize the SinCIT object.
 
@@ -92,7 +92,8 @@ class SinCIT(DatasetOperator):
         - beta (float): Parameter for type2 test correlation.
         - alpha (float): Noise scale parameter.
         - mode (str): Mode for X|Z estimation. One of MODE_MODEL_X, MODE_PSEUDO_MODEL_X, MODE_ONLINE.
-        - mu_X_given_Z_estimator: Pretrained estimator for a given c.
+        - estimator: Pretrained estimator for a given c.
+        - estimator_type: Type of estimator ('mlp', 'gmmn').
         """
         super().__init__(tau1, tau2)
 
@@ -115,7 +116,7 @@ class SinCIT(DatasetOperator):
             a_tilde = torch.from_numpy(a_tilde).to(torch.float32)
         else:
             # Use estimator (pseudo_model_x or online mode)
-            a_tilde = sample_X_tilde_given_Z_estimator(c, a, mu_X_given_Z_estimator).to('cpu')
+            a_tilde = sample_from_estimator(c, a, estimator, estimator_type).to('cpu')
         
         # Construct X and Y
         # X = [a, c], Y = b
@@ -164,6 +165,7 @@ class SinCITGen(CITDataGeneratorBase):
         """
         super().__init__(type, samples, data_seed, mode, pretrain_samples, estimator_cfg)
         self._z_dim = z_dim
+        self._x_dim = 1  # Dimension of X (a)
         self.d = z_dim + 1 + 1  # Total dimension: a(1) + c(z_dim) + b(1)
         self.beta = beta
         self.alpha = alpha
@@ -173,12 +175,7 @@ class SinCITGen(CITDataGeneratorBase):
         
         # Initialize estimator based on mode
         self._initialize_mode(mode, pretrain_samples, type)
-    
-    @property
-    def z_dim(self):
-        """Dimension of conditioning variable Z (c)."""
-        return self._z_dim
-    
+
     def _initialize_mode(self, mode, pretrain_samples, type):
         """Initialize estimator based on mode."""
         if mode == MODE_PSEUDO_MODEL_X:
@@ -210,4 +207,4 @@ class SinCITGen(CITDataGeneratorBase):
         return SinCIT(self.type, self.samples, self._z_dim, modified_seed, tau1, tau2, 
                       beta=self.beta, alpha=self.alpha,
                       ca_dim_idx=self.ca_dim_idx, cb_dim_idx=self.cb_dim_idx, cr_dim_idx=self.cr_dim_idx,
-                      mode=self.mode, mu_X_given_Z_estimator=self.mu_X_given_Z_estimator)
+                      mode=self.mode, estimator=self.estimator, estimator_type=self.estimator_type)
