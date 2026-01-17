@@ -13,7 +13,7 @@ pretrain_samples: 3000  # Number of samples for pre-training (only used in pseud
 
 # Estimator configuration (used in pseudo_model_x and online modes)
 estimator_cfg:
-  hidden_size: [128]  # List of hidden layer sizes
+  hidden_size: [64, 128]  # List of hidden layer sizes
   layer_norm: true
   drop_out: true
   drop_out_p: 0.3
@@ -26,7 +26,7 @@ estimator_cfg:
   estimator_type: "mlp"
   use_shrinkage_cov: true  # Whether to use shrinkage covariance for MLP sampling
   shrinkage_alpha: 0.1  # Shrinkage strength for covariance (only used when estimator_type='mlp')
-  noise_dim: 64  # Noise dimension η (only used when estimator_type='gmmn')
+  noise_dim: 4  # Noise dimension η (only used when estimator_type='gmmn')
   gmmn_kernel: "rbf"  # Kernel type for MMD: 'rbf' or 'imq' (only used when estimator_type='gmmn')
   gmmn_M_train: 5  # Number of samples per Z during GMMN training
   gmmn_grad_clip: 0.5  # Gradient clipping for GMMN stability

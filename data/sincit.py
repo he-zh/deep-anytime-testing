@@ -76,7 +76,7 @@ class SinCIT(DatasetOperator):
     the GaussianCIT interface.
     """
 
-    def __init__(self, type, samples, z_dim, seed, tau1, tau2, beta=1.0, alpha=0.1, 
+    def __init__(self, type, samples, z_dim, seed, tau1, tau2, x_dim=1, beta=1.0, alpha=0.1, 
                  ca_dim_idx=0, cb_dim_idx=0, cr_dim_idx=0,
                  mode=MODE_MODEL_X, estimator=None, estimator_type=ESTIMATOR_MLP):
         """
@@ -95,7 +95,7 @@ class SinCIT(DatasetOperator):
         - estimator: Pretrained estimator for a given c.
         - estimator_type: Type of estimator ('mlp', 'gmmn').
         """
-        super().__init__(tau1, tau2)
+        super().__init__(tau1, tau2, z_dim=z_dim, x_dim=x_dim)
 
         # Retrieve data for Sinusoidal CIT
         a, b, c, a_m = get_sin_cit_data(n=samples, z_dim=z_dim, test=type, seed=seed, beta=beta, alpha=alpha,
@@ -204,7 +204,7 @@ class SinCITGen(CITDataGeneratorBase):
         """
         # Use a modified seed value based on the provided seed and class's data_seed
         modified_seed = (self.data_seed + 1) * 100 + seed
-        return SinCIT(self.type, self.samples, self._z_dim, modified_seed, tau1, tau2, 
+        return SinCIT(self.type, self.samples, self._z_dim, modified_seed, tau1, tau2, x_dim=self._x_dim,
                       beta=self.beta, alpha=self.alpha,
                       ca_dim_idx=self.ca_dim_idx, cb_dim_idx=self.cb_dim_idx, cr_dim_idx=self.cr_dim_idx,
                       mode=self.mode, estimator=self.estimator, estimator_type=self.estimator_type)

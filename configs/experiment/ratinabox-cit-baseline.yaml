@@ -1,7 +1,6 @@
 # @package _global_
 defaults:
   - /data: ratinabox
-  - /model: mlp
   - /operator@tau1:
       - projection
   - /operator@tau2:
@@ -14,9 +13,9 @@ project: "Test"
 
 wandb:
   disabled: false
-  group: "${data.mode}_${wandb.task}_davt_${data.estimator_cfg.estimator_type}_bs${data.samples}_T${train.T}"
+  group: "${data.mode}_${wandb.task}_${train.name}_${data.estimator_cfg.estimator_type}_bs${data.samples}_T${train.T}"
   task: "ratinabox"
-  tags: ["test", "davt", "${data.estimator_cfg.estimator_type}"]
+  tags: ["test", "${train.name}", "${data.mode}", "${data.estimator_cfg.estimator_type}"]
 
 
 tau1:
@@ -32,12 +31,13 @@ tau2:
 
 
 model:
-  input_size: 204  # 2 * n_cells + c_dim = 2 * 100 + 4 (update when changing n_cells!)
-  hidden_layer_size: [256, 128]
+  _target_: "models.mlp.MLP"
+  input_size: 104  # 1 * n_cells + c_dim = 1 * 100 + 4 (update when changing n_cells!)
+  hidden_layer_size: [128, 128]
   layer_norm: true
   drop_out: true
   drop_out_p: 0.3
-  output_size: 1
+  output_size: ${data.n_cells}
   bias: true
 
 
@@ -57,6 +57,7 @@ data:
 
 
 train:
+  name: "ecrt"
   seed: 0
   lr: 0.0005
   earlystopping:

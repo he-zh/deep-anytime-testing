@@ -1,7 +1,6 @@
 # @package _global_
 defaults:
-  - /data: gaussiancit
-  - /model: mlp
+  - /data: sincit
   - /operator@tau1:
       - projection
   - /operator@tau2:
@@ -11,12 +10,11 @@ defaults:
 
 project: "Test"
 
-
 wandb:
   disabled: false
-  group: "${data.mode}_${wandb.task}_d${data.z_dim}_davt_mlp_bs${data.samples}_T${train.T}"
-  task: "gaussian"
-  tags: ["test", "davt", "${data.mode}"]
+  group: "${data.mode}_${wandb.task}_d${data.z_dim}_${train.name}_mlp_bs${data.samples}_T${train.T}"
+  task: "sin"
+  tags: ["test", "${train.name}", "${data.mode}"]
 
 
 tau1:
@@ -25,14 +23,15 @@ tau1:
 
 tau2:
   swap:
-    p: 21
+    p: 5 # data.z_dim + 2
     d: 0
   projection:
     input_dim: 0
 
 
 model:
-  input_size: 21
+  _target_: "models.mlp.MLP"
+  input_size: 4 # data.z_dim + 1
   hidden_layer_size: [128]
   layer_norm: true
   drop_out: true
@@ -41,22 +40,27 @@ model:
   bias: true
 
 data:
-  z_dim: 19
+  z_dim: 3
   data_seed: ${train.seed}
-  samples: 100
+  samples: 20
   type: "type2"
+  beta: 3
+  alpha: 0.1
   mode: "model_x"  # Options: "model_x", "pseudo_model_x", "online"
   pretrain_samples: 3000  # Only used in pseudo_model_x mode
-
+  ca_dim_idx: 0
+  cb_dim_idx: 0
+  cr_dim_idx: 0
 
 train:
+  name: "ecrt"
   seed: 0
   lr: 0.0005
   earlystopping:
     patience: 10
     delta: 0.0
   epochs: 500
-  seqs: 50 # number of mini-batches
+  seqs: 100 # number of mini-batches
   T: 0 #Warm start number of mini-batches used for the training only
   alpha: 0.05 # significance level
   batch_size: ${data.samples}

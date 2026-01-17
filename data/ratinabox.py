@@ -88,7 +88,8 @@ class RatInABoxCIT(DatasetOperator):
     - self.z = stack([Z, Z_tilde], dim=2)
     """
 
-    def __init__(self, a, b, c, tau1, tau2, estimator=None, estimator_type=ESTIMATOR_MLP,
+    def __init__(self, a, b, c, tau1, tau2, z_dim=1, x_dim=1,
+                 estimator=None, estimator_type=ESTIMATOR_MLP,
                  use_shrinkage_cov=False, shrinkage_alpha=0.0, cov_cholesky=None):
         """
         Initialize the RatInABoxCIT object from pre-loaded data arrays.
@@ -105,7 +106,7 @@ class RatInABoxCIT(DatasetOperator):
             shrinkage_alpha: Shrinkage strength for covariance.
             cov_cholesky: Pre-computed Cholesky factor of global covariance (optional).
         """
-        super().__init__(tau1, tau2)
+        super().__init__(tau1, tau2, z_dim=z_dim, x_dim=x_dim)
 
         # Store original tensors for reference
         self.a = a
@@ -280,6 +281,7 @@ class RatInABoxCITGen(CITDataGeneratorBase):
         c = self.full_c[batch_indices]
         
         return RatInABoxCIT(a, b, c, tau1, tau2, 
+                            z_dim=self._z_dim, x_dim=self._x_dim,
                            estimator=self.estimator,
                            estimator_type=self.estimator_type,
                            use_shrinkage_cov=self.use_shrinkage_cov,

@@ -80,8 +80,9 @@ class TrainerECRT(Trainer):
 
         for i, (z, tau_z) in enumerate(loader):
             z = z.to(self.device)
-            features = z[:, :-1]
-            target = z[:, -1]
+            target_size = loader.dataset.x_dim
+            features = z[:, :-target_size]
+            target = z[:, -target_size:]
             tau_z = tau_z.to(self.device)
 
             self.net = self.net.train() if mode == "train" else self.net.eval()
@@ -90,7 +91,7 @@ class TrainerECRT(Trainer):
             loss = self.loss(out.squeeze(), target)
             aggregated_loss += loss
 
-            y_tilde = self.net(tau_z[:, :-1]).detach()
+            y_tilde = self.net(tau_z[:, :-target_size]).detach()
             loss_tilde += self.loss(y_tilde.squeeze(), target)
 
             if mode == "train":
@@ -98,7 +99,7 @@ class TrainerECRT(Trainer):
                 loss.backward()
                 self.optimizer.step()
 
-            e_val = self.ecrt(target, features, tau_z[:, :-1], [2, 5, 10], mode)
+            e_val = self.ecrt(target, features, tau_z[:, :-target_size], [2, 5, 10], mode)
 
         self.log({
             f"{mode}_loss": aggregated_loss.item() / (i + 1),

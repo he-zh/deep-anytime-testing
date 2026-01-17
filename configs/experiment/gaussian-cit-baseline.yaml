@@ -11,6 +11,13 @@ defaults:
 project: "Test"
 
 
+wandb:
+  disabled: false
+  group: "${data.mode}_${wandb.task}_d${data.z_dim}_${train.name}_mlp_bs${data.samples}_T${train.T}"
+  task: "gaussian"
+  tags: ["test", "${train.name}", "${data.mode}"]
+
+
 tau1:
   projection:
     input_dim: 0
@@ -34,9 +41,12 @@ model:
   bias: true
 
 data:
-  data_seed: 0
+  z_dim: 19
+  data_seed: ${train.seed}
   samples: 100
   type: "type2"
+  mode: "model_x"  # Options: "model_x", "pseudo_model_x", "online"
+  pretrain_samples: 3000  # Only used in pseudo_model_x mode
 
 
 train:
@@ -50,7 +60,7 @@ train:
   seqs: 50 # number of mini-batches
   T: 0 #Warm start number of mini-batches used for the training only
   alpha: 0.05 # significance level
-  batch_size: 100
+  batch_size: ${data.samples}
   l1_lambda: 0.0
   l2_lambda: 0.0
   save: false

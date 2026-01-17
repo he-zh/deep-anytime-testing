@@ -269,7 +269,7 @@ def train_gmmn_estimator(model, Z_train, X_train,
         batch_size=20, shuffle=True)
     
     if optimizer is None:
-        optimizer = optim.Adam(model.parameters(), lr=lr)
+        optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     
     for epoch in range(epochs):
         model.train()

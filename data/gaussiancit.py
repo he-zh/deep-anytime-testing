@@ -49,7 +49,7 @@ class GaussianCIT(DatasetOperator):
     This class is responsible for creating a Gaussian CIT dataset.
     """
 
-    def __init__(self, type, samples, seed, tau1, tau2, u, v, z_dim, mode=MODE_MODEL_X, 
+    def __init__(self, type, samples, seed, tau1, tau2, u, v, z_dim, x_dim=1, mode=MODE_MODEL_X, 
                  estimator=None, estimator_type=ESTIMATOR_MLP):
         """
         Initialize the GaussianCIT object.
@@ -63,12 +63,12 @@ class GaussianCIT(DatasetOperator):
         - u (numpy.ndarray): A parameter for generating CIT data.
         - v (numpy.ndarray): Another parameter for generating CIT data.
         - z_dim (int): Dimension of conditioning variable Z.
+        - x_dim (int): Dimension of target variable X.
         - mode (str): Mode for X|Z estimation. One of MODE_MODEL_X, MODE_PSEUDO_MODEL_X, MODE_ONLINE.
         - estimator: Pretrained estimator for X given Z.
         - estimator_type: Type of estimator ('mlp', 'gmmn').
         """
-        super().__init__(tau1, tau2)
-
+        super().__init__(tau1, tau2, z_dim=z_dim, x_dim=x_dim)
         # Retrieve data for Gaussian CIT
         X, Y, mu = get_cit_data(z_dim=z_dim, u=u, v=v, n=samples, test=type, seed=seed)
 
@@ -166,4 +166,4 @@ class GaussianCITGen(CITDataGeneratorBase):
         # Use a modified seed value based on the provided seed and class's data_seed
         modified_seed = (self.data_seed + 1) * 1000 + seed
         return GaussianCIT(self.type, self.samples, modified_seed, tau1, tau2, self.u, self.v,
-                          z_dim=self._z_dim, mode=self.mode, estimator=self.estimator)
+                          z_dim=self._z_dim, x_dim=self._x_dim, mode=self.mode, estimator=self.estimator)

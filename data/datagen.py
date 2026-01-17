@@ -23,9 +23,15 @@ class DataGenerator(ABC):
         pass
 
 class DatasetOperator(Dataset):
-    def __init__(self, tau1, tau2):
+    def __init__(self, tau1, tau2, z_dim=None, x_dim=None):
+        """
+        - z_dim: Dimension of conditioning variable Z_cov (default 1)
+        - x_dim: Dimension of target variable X (default 1)
+        """
         self.tau1 = tau1
         self.tau2 = tau2
+        self.z_dim = z_dim  # To be set by subclass or passed explicitly
+        self.x_dim = x_dim  # To be set by subclass or passed explicitly
 
     def __len__(self):
         return self.z.shape[0]
@@ -38,7 +44,7 @@ class DatasetOperator(Dataset):
             tau2_z = self.tau2(tau2_z)
         return tau1_z, tau2_z
 
-    def regenerate_tilde(self, estimator, z_dim=1, x_dim=1, estimator_type=ESTIMATOR_MLP,
+    def regenerate_tilde(self, estimator, estimator_type=ESTIMATOR_MLP,
                          use_shrinkage_cov=False, shrinkage_alpha=0.1, cov_cholesky=None):
         """
         Regenerate X_tilde using an updated estimator.
@@ -54,8 +60,6 @@ class DatasetOperator(Dataset):
         
         Args:
         - estimator: Updated estimator for E[X|Z] or P(X|Z)
-        - z_dim: Dimension of conditioning variable Z_cov (default 1)
-        - x_dim: Dimension of target variable X (default 1)
         - estimator_type: Type of estimator ('mlp', 'gmmn')
         - use_shrinkage_cov: If True, use shrinkage covariance for MLP sampling
         - shrinkage_alpha: Shrinkage strength (only used when use_shrinkage_cov=True and cov_cholesky is None)
@@ -66,9 +70,9 @@ class DatasetOperator(Dataset):
             
         # Extract from original Z (z[:, :, 0])
         Z_original = self.z[:, :, 0]
-        X_target = Z_original[:, :x_dim]              # (n, x_dim)
-        Z_cov = Z_original[:, x_dim:x_dim+z_dim]      # (n, z_dim)
-        Y = Z_original[:, x_dim+z_dim:]               # (n, y_dim)
+        X_target = Z_original[:, :self.x_dim]              # (n, x_dim)
+        Z_cov = Z_original[:, self.x_dim:self.x_dim+self.z_dim]      # (n, z_dim)
+        Y = Z_original[:, self.x_dim+self.z_dim:]               # (n, y_dim)
         
         # Regenerate X_tilde with the updated estimator based on type
         X_tilde_new = sample_from_estimator(
@@ -102,7 +106,7 @@ class MergedDataset(DatasetOperator):
         
         # Get tau1, tau2 from first dataset
         first = datasets[0]
-        super().__init__(first.tau1, first.tau2)
+        super().__init__(first.tau1, first.tau2, z_dim=first.z_dim, x_dim=first.x_dim)
         
         # Collect all z tensors and ground_truth_mu
         all_z = []

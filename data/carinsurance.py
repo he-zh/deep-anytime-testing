@@ -209,7 +209,7 @@ class CarInsuranceCIT(DatasetOperator):
     The test structure is: [a, c, b] where we estimate a|c and sample a_tilde.
     """
 
-    def __init__(self, a, b, c, tau1, tau2, estimator=None, estimator_type=ESTIMATOR_MLP):
+    def __init__(self, a, b, c, tau1, tau2, z_dim=1, x_dim=1, estimator=None, estimator_type=ESTIMATOR_MLP):
         """
         Initialize the CarInsuranceCIT object from pre-loaded data arrays.
 
@@ -222,7 +222,7 @@ class CarInsuranceCIT(DatasetOperator):
             estimator: Trained estimator for E[a|c], or None for online mode
             estimator_type: Type of estimator ('mlp', 'gmmn')
         """
-        super().__init__(tau1, tau2)
+        super().__init__(tau1, tau2, z_dim=z_dim, x_dim=x_dim)
         
         # No ground truth conditional mean for real data
         self.ground_truth_mu = None
@@ -395,5 +395,5 @@ class CarInsuranceCITGen(CITDataGeneratorBase):
         b = self.full_b[batch_indices]
         c = self.full_c[batch_indices]
         
-        return CarInsuranceCIT(a, b, c, tau1, tau2, 
+        return CarInsuranceCIT(a, b, c, tau1, tau2, z_dim=self._z_dim, x_dim=self._x_dim,
                                estimator=self.estimator, estimator_type=self.estimator_type)
