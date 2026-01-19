@@ -12,9 +12,9 @@ project: "Test"
 
 wandb:
   disabled: false
-  group: "${data.mode}_${wandb.task}_d${data.z_dim}_${train.name}_mlp_bs${data.samples}_T${train.T}"
+  group: "${data.mode}_${wandb.task}_d${data.z_dim}_coord${data.ca_dim_idx}${data.cb_dim_idx}${data.cr_dim_idx}_${train.name}_mlp_bs${data.samples}_T${train.T}"
   task: "sin"
-  tags: ["test", "${train.name}", "${data.mode}"]
+  tags: ["icml", "${train.name}_v1", "${data.mode}"]
 
 
 tau1:

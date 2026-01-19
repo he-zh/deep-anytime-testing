@@ -13,9 +13,9 @@ project: "Test"
 
 wandb:
   disabled: false
-  group: "${data.mode}_${wandb.task}_d${data.z_dim}_davt_mlp_128_${model.output_size}_bs${data.samples}_T${train.T}"
+  group: "${data.mode}_${wandb.task}_d${data.z_dim}_coord${data.ca_dim_idx}${data.cb_dim_idx}${data.cr_dim_idx}_davt_mlp_bs${data.samples}_T${train.T}"
   task: "sin"
-  tags: ["test", "davt", "${data.mode}"]
+  tags: ["icml", "davt", "${data.mode}"]
 
 
 tau1:
