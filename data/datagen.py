@@ -422,7 +422,7 @@ class CITDataGeneratorBase(DataGenerator):
             
         try:
             if hasattr(data, 'regenerate_tilde'):
-                data.regenerate_tilde(self.estimator, self.z_dim, self.x_dim, 
+                data.regenerate_tilde(self.estimator, 
                                       estimator_type=self.estimator_type,
                                       use_shrinkage_cov=self.use_shrinkage_cov,
                                       shrinkage_alpha=self.shrinkage_alpha,
