@@ -32,7 +32,7 @@ tau2:
 model:
   _target_: "models.mlp.MLP"
   input_size: 4 # data.z_dim + 1
-  hidden_layer_size: [128]
+  hidden_layer_size: [16, 128, 128, 16]
   layer_norm: true
   drop_out: true
   drop_out_p: 0.3

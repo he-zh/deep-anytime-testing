@@ -34,7 +34,7 @@ class TrainerECRT(Trainer):
         Returns:
         - torch.Tensor: Test statistic.
         """
-        self.net = self.net.eval()
+        self.net.eval()
         total_samples = y.shape[0]
         test_stat = torch.nn.MSELoss(reduction='mean')
         st = []
@@ -87,7 +87,7 @@ class TrainerECRT(Trainer):
             target = z[:, -target_size:]
             tau_z = tau_z.to(self.device)
 
-            self.net = self.net.train() if mode == "train" else self.net.eval()
+            self.net.train() if mode == "train" else self.net.eval()
 
             out = self.net(features)
             loss = self.loss(out, target)

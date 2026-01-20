@@ -1,0 +1,21 @@
+_target_: "data.highdim_gaussian.HighDimGaussianCITGen"
+samples: 1000
+type: "type2"
+data_seed: 0
+x_dim: 100  # Dimension of target variable a (X)
+z_dim: 4   # Dimension of conditioning variable c (Z)
+mode: "model_x"  # Options: "model_x", "pseudo_model_x", "online"
+pretrain_samples: 3000  # Number of samples for pre-training (only used in pseudo_model_x mode)
+
+# Estimator configuration (used in pseudo_model_x and online modes)
+estimator_cfg:
+  hidden_size: 128
+  layer_norm: true
+  drop_out: true
+  drop_out_p: 0.3
+  lr: 0.0001
+  epochs_pseudo: 1000  # For pseudo_model_x (trains once with more data)
+  epochs_online: 300   # For online (trains incrementally)
+  estimator_type: "gmmn"  # Options: "mlp", "gmmn"
+  use_shrinkage_cov: true  # Use shrinkage covariance for MLP sampling
+  shrinkage_alpha: 0.  # Shrinkage strength

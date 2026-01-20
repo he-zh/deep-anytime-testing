@@ -13,7 +13,7 @@ project: "Test"
 
 wandb:
   disabled: false
-  group: "online_${wandb.task}_${data.state}_${data.type}_davt_mlp_128_${model.output_size}_bs${data.samples}_T${train.T}"
+  group: "online_${wandb.task}_${data.state}_davt_mlp_bs${data.samples}_T${train.T}"
   task: "carinsurance"
   tags: ["test", "davt", "online"]
 
