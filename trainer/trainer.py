@@ -63,7 +63,7 @@ class Trainer:
         - logs (dict): Dictionary containing metrics to be logged.
         """
         for key, value in logs.items():
-            wandb.log({key: value})
+            wandb.log({key: value}, step=self.current_seq * self.epochs + self.current_epoch)
             logging.info(f"Seq: {self.current_seq}, Epoch: {self.current_epoch}, {key}: {value}")
 
     def l1_regularization(self):
@@ -104,7 +104,7 @@ class Trainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-        self.log({f"{mode}_e-value": davt.item(), f"{mode}_loss": aggregated_loss.item() / num_samples})
+        # self.log({f"{mode}_e-value": davt.item(), f"{mode}_loss": aggregated_loss.item() / num_samples})
         return aggregated_loss / num_samples, davt
 
     def load_data(self, seed, mode="train"):
@@ -134,6 +134,7 @@ class Trainer:
         train_data, train_loader = self.load_data(self.seed, mode="train")
         val_data, val_loader = self.load_data(self.seed + 1, mode="val")
         davts = []
+        reject_null = 0.0
 
         for k in range(self.seqs):
             self.current_seq = k
@@ -150,6 +151,7 @@ class Trainer:
                     davt = np.prod(np.array(davts[self.T:])) if k >= self.T else 1
                     self.log({"aggregated_test_e-value": davt})
                     train_data = ConcatDataset([train_data, val_data])
+                    self.log({"all_sample_nums": len(test_data) * (k+3)})
                     val_data = test_data
                     train_loader = DataLoader(train_data, batch_size=self.bs, shuffle=True)
                     val_loader = DataLoader(val_data, batch_size=self.bs, shuffle=True)
@@ -162,3 +164,7 @@ class Trainer:
             if davt > (1. / self.alpha):
                 logging.info("Reject null at %f", davt)
                 self.log({"steps": k})
+                reject_null = 1.0
+                self.log({"reject_null": reject_null})
+            else:
+                self.log({"reject_null": reject_null})

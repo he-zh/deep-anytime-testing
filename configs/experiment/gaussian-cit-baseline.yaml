@@ -10,6 +10,13 @@ defaults:
 
 project: "Test"
 
+wandb:
+  disabled: false
+  group: "model_x_${wandb.task}_d19_ecrt_mlp_bs${data.samples}_T${train.T}"
+  task: "gaussian"
+  tags: ["test", "ecrt_ori", "model_x"]
+
+
 
 tau1:
   projection:

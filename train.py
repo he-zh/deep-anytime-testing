@@ -14,7 +14,18 @@ def train_pipeline(cfg: DictConfig):
     wandb.config = OmegaConf.to_container(
         cfg, resolve=True, throw_on_missing=True
     )
-    wandb.init(project=cfg.project, config=wandb.config)
+    if not cfg.wandb.disabled:
+        wandb.init(
+            entity="zhhe",
+            project='seq-kci',
+            group=cfg.wandb.group,
+            name=f"{cfg.data.type}_dseed-{cfg.data.data_seed}_tseed-{cfg.train.seed}",
+            tags=cfg.wandb.tags + [cfg.data.type, 
+                                   cfg.wandb.task], # tags: kernel type: [rbf, linear], dataset type ['type1, type2'], purpose: [debug, exp]
+            config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+        )
+    else:
+        wandb.init(mode="disabled")  # completely disables logging
     # initialize data
     datagen = instantiate(cfg.data)
 

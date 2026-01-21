@@ -11,6 +11,13 @@ defaults:
 
 project: "Test"
 
+wandb:
+  disabled: false
+  group: "model_x_${wandb.task}_d19_davt_mlp_bs${data.samples}_T${train.T}"
+  task: "gaussian"
+  tags: ["test", "davt_ori", "model_x"]
+
+
 
 tau1:
   projection:

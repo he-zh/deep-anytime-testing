@@ -1,9 +1,9 @@
 #!/bin/bash
 
-for s in {0..99}
+for s in {15..99}
 do
-  python train.py experiment=blob-swap-projection data.data_seed=$s data.type="type11" project="BLOB"
-wait
+  python train_baselines.py experiment=gaussian-cit-baseline data.data_seed=$s data.type="type1" \
+    "train.seqs=100" "data.samples=20" 
 done
 
 
